@@ -1,0 +1,18 @@
+:root { font-family: Arial, sans-serif; color: #e9edf5; background: #111827; }
+body { margin: 0; background: #111827; }
+* { box-sizing: border-box; }
+a { color: #8bc5ff; text-decoration: none; }
+button { cursor: pointer; background: #2563eb; color: white; border: 0; border-radius: 6px; padding: 8px 10px; }
+input, select { width: 100%; margin-top: 4px; margin-bottom: 8px; padding: 8px; border-radius: 6px; border: 1px solid #3b4257; background: #0f172a; color: #e9edf5; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+th, td { border: 1px solid #293043; padding: 8px; }
+.start-screen { max-width: 900px; margin: 24px auto; display: grid; gap: 16px; }
+.card { background: #1f2937; padding: 16px; border-radius: 10px; }
+.save-row { display: flex; justify-content: space-between; align-items: center; background: #111827; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+.error { color: #fda4af; }
+.career-layout { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+.sidebar { background: #0b1220; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.sidebar nav a { padding: 8px; border-radius: 6px; color: #cbd5e1; }
+.sidebar nav a.active, .sidebar nav a:hover { background: #2563eb; color: #fff; }
+main { padding: 20px; }
