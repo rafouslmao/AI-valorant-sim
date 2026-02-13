@@ -1,4 +1,5 @@
 import { clamp, randInt, uid } from './utils.js';
+import { addMessage } from './messages.js';
 
 function teamSnapshot(state, tid) {
   const team = state.teams.find((t) => t.tid === tid);
@@ -56,10 +57,10 @@ export function evaluateOffer(player, teamContext, offer, currentTid) {
   );
 
   const reasons = [];
-  if (offer.salary < minValue * 0.9) reasons.push('Salary below market value');
-  if (teamContext.teamReputation > 75) reasons.push('High prestige team appeal');
-  if (roleScore < 0.5) reasons.push('Unclear playtime promise');
-  if (teamContext.financialStability < 40) reasons.push('Financial instability concern');
+  if (offer.salary < minValue * 0.9) reasons.push('salary too low');
+  if (teamContext.teamReputation > 75) reasons.push('high team prestige');
+  if (roleScore < 0.5) reasons.push('role promise mismatch');
+  if (teamContext.financialStability < 40) reasons.push('team finances are weak');
 
   return {
     accepted: score >= 0.92,
@@ -80,14 +81,14 @@ export function startNegotiation(state, playerId, teamId) {
   const player = state.players.find((p) => p.pid === playerId);
   if (!player) return null;
   const key = uid('neg');
-  state.negotiations[key] = {
-    id: key,
-    playerId,
-    teamId,
-    startedAt: Date.now(),
-    rounds: [],
-    aiOffers: generateAIOffers(state, playerId)
-  };
+  state.negotiations[key] = { id: key, playerId, teamId, startedAt: Date.now(), rounds: [], aiOffers: generateAIOffers(state, playerId) };
+  addMessage(state, {
+    from: { type: 'gm', name: 'GM Office' },
+    subject: `Offer Prep Started — ${player.name}`,
+    body: `Negotiation started with ${player.name}.`,
+    category: 'contract',
+    related: { playerId }
+  });
   return state.negotiations[key];
 }
 
@@ -99,22 +100,46 @@ export function submitOffer(state, negotiationId, offer) {
   const evalResult = evaluateOffer(player, context, offer, player.tid);
   neg.rounds.push({ offer, evalResult, ts: Date.now() });
 
+  addMessage(state, {
+    from: { type: 'gm', name: 'GM Office' },
+    subject: `Offer sent to ${player.name}`,
+    body: `Salary ${offer.salary}, ${offer.years} year(s), ${offer.rolePromise}. Awaiting response.`,
+    category: 'contract',
+    related: { playerId: player.pid, contractId: neg.id }
+  });
+
   if (evalResult.accepted) {
     player.tid = neg.teamId;
     player.salary = offer.salary;
-    player.currentContract = {
-      salaryPerYear: offer.salary,
-      yearsRemaining: offer.years,
-      signedWithTid: neg.teamId,
-      buyoutClause: Math.round(offer.salary * 3),
-      rolePromise: offer.rolePromise,
-      signingBonus: offer.signingBonus
-    };
+    player.currentContract = { salaryPerYear: offer.salary, yearsRemaining: offer.years, signedWithTid: neg.teamId, buyoutClause: Math.round(offer.salary * 3), rolePromise: offer.rolePromise, signingBonus: offer.signingBonus };
     const team = context.team;
     team.cash -= offer.signingBonus;
     team.expenses += offer.signingBonus;
     player.history.push(`Signed contract with ${team.name} (${offer.years}y)`);
+    addMessage(state, {
+      from: { type: 'player', name: player.name },
+      subject: `Offer Accepted — ${player.name}`,
+      body: `${player.name} accepted the offer.`,
+      category: 'contract',
+      related: { playerId: player.pid, contractId: neg.id }
+    });
     delete state.negotiations[negotiationId];
+  } else if (evalResult.counter) {
+    addMessage(state, {
+      from: { type: 'agent', name: `${player.name}'s Agent` },
+      subject: `Counter Offer — ${player.name}`,
+      body: `Counter terms: salary ${evalResult.counter.salary}, ${evalResult.counter.years}y, ${evalResult.counter.rolePromise}. Reasons: ${evalResult.reasons.slice(0, 3).join(', ') || 'market leverage'}.`,
+      category: 'contract',
+      related: { playerId: player.pid, contractId: neg.id }
+    });
+  } else {
+    addMessage(state, {
+      from: { type: 'player', name: player.name },
+      subject: `Offer Rejected — ${player.name}`,
+      body: `Rejected. Reasons: ${evalResult.reasons.slice(0, 4).join(', ') || 'insufficient fit'}.`,
+      category: 'contract',
+      related: { playerId: player.pid, contractId: neg.id }
+    });
   }
 
   return evalResult;
@@ -126,13 +151,7 @@ export function generateAIOffers(state, playerId) {
   const pool = state.teams.map((t) => {
     const context = teamSnapshot(state, t.tid);
     const min = marketValue(player);
-    const offer = {
-      teamId: t.tid,
-      salary: Math.round(min * (0.85 + Math.random() * 0.5)),
-      years: randInt(1, 3),
-      rolePromise: Math.random() > 0.45 ? 'starter' : 'bench',
-      signingBonus: Math.round(min * (0.08 + Math.random() * 0.25))
-    };
+    const offer = { teamId: t.tid, salary: Math.round(min * (0.85 + Math.random() * 0.5)), years: randInt(1, 3), rolePromise: Math.random() > 0.45 ? 'starter' : 'bench', signingBonus: Math.round(min * (0.08 + Math.random() * 0.25)) };
     const evalRes = evaluateOffer(player, context, offer, player.tid);
     return { ...offer, score: evalRes.score };
   });

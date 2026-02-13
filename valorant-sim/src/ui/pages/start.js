@@ -1,6 +1,6 @@
 import { TEAMS } from '../../core/constants.js';
-import { createWorld, listSaves, loadSave, setActiveSaveId } from '../../core/storage.js';
-import { setWorld } from '../../core/state.js';
+import { clearActiveSaveId, createWorld, deleteAllSaves, deleteSave, listSaves, loadSave, setActiveSaveId } from '../../core/storage.js';
+import { clearWorld, setWorld } from '../../core/state.js';
 
 export function renderStartPage(root) {
   const saves = listSaves();
@@ -22,6 +22,7 @@ export function renderStartPage(root) {
       </section>
       <section class="card">
         <h2>Load Career</h2>
+        <button id="deleteAll">Delete All Saves</button>
         <div id="saveList"></div>
       </section>
     </div>
@@ -44,6 +45,14 @@ export function renderStartPage(root) {
     window.location.hash = '#/home';
   };
 
+  root.querySelector('#deleteAll').onclick = () => {
+    if (!confirm('Delete all saves?')) return;
+    deleteAllSaves();
+    clearActiveSaveId();
+    clearWorld();
+    renderStartPage(root);
+  };
+
   const saveList = root.querySelector('#saveList');
   if (saves.length === 0) {
     saveList.textContent = 'No saves yet.';
@@ -53,16 +62,25 @@ export function renderStartPage(root) {
     const item = document.createElement('div');
     item.className = 'save-row';
     item.innerHTML = `<strong>${s.saveName}</strong> — ${s.team} — ${s.year} — ${s.mode}`;
-    const btn = document.createElement('button');
-    btn.textContent = 'Load Career';
-    btn.onclick = () => {
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = 'Load';
+    loadBtn.onclick = () => {
       const world = loadSave(s.id);
       if (!world) return;
       setActiveSaveId(s.id);
       setWorld(world);
       window.location.hash = '#/home';
     };
-    item.append(btn);
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => {
+      if (!confirm(`Delete ${s.saveName}?`)) return;
+      deleteSave(s.id);
+      clearWorld();
+      window.location.hash = '#/start';
+      renderStartPage(root);
+    };
+    item.append(loadBtn, delBtn);
     saveList.append(item);
   }
 }

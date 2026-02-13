@@ -8,8 +8,30 @@ function readSaves() {
   return JSON.parse(localStorage.getItem(SAVES_KEY) || '[]');
 }
 
+function compactWorldForStorage(world) {
+  const clone = JSON.parse(JSON.stringify(world));
+  // keep full live match, compress finalized heavy round logs when needed
+  for (const m of clone.schedule || []) {
+    if (m.status === 'final' && m.result?.maps) {
+      m.result.maps = m.result.maps.map((map) => ({
+        ...map,
+        rounds: map.rounds?.slice(-24) || [],
+        ecoSummary: Object.fromEntries(Object.entries(map.ecoSummary || {}).map(([k, v]) => [k, { ...v, creditsByRound: (v.creditsByRound || []).slice(-24) }]))
+      }));
+    }
+  }
+  if ((clone.messages || []).length > 350) clone.messages = clone.messages.slice(-350);
+  return clone;
+}
+
 function writeSaves(saves) {
-  localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+  try {
+    localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+  } catch (error) {
+    if (error?.name !== 'QuotaExceededError') throw error;
+    const compacted = saves.map((s) => compactWorldForStorage(s));
+    localStorage.setItem(SAVES_KEY, JSON.stringify(compacted));
+  }
 }
 
 export function listSaves() {
@@ -44,12 +66,20 @@ export function saveToSlot(world) {
   const saves = readSaves();
   const idx = saves.findIndex((s) => s.id === world.id);
   world.meta.updatedAt = Date.now();
-  if (idx >= 0) {
-    saves[idx] = world;
-  } else {
-    saves.push(world);
-  }
+  if (idx >= 0) saves[idx] = world;
+  else saves.push(world);
   writeSaves(saves);
+}
+
+export function deleteSave(id) {
+  const saves = readSaves().filter((s) => s.id !== id);
+  writeSaves(saves);
+  if (getActiveSaveId() === id) clearActiveSaveId();
+}
+
+export function deleteAllSaves() {
+  localStorage.removeItem(SAVES_KEY);
+  clearActiveSaveId();
 }
 
 export function loadFromSlot() {

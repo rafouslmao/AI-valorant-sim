@@ -5,6 +5,9 @@ const tabs = [
   ['home', 'Career Home'],
   ['roster', 'Roster'],
   ['matches', 'Matches'],
+  ['match', 'Match View'],
+  ['strategy', 'Strategy'],
+  ['messages', 'Messages'],
   ['players', 'Players'],
   ['free-agents', 'Free Agents'],
   ['staff', 'Staff'],
@@ -13,7 +16,7 @@ const tabs = [
   ['facilities', 'Facilities']
 ];
 
-export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}) {
+export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}, badges = {}) {
   root.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'career-layout';
@@ -24,8 +27,8 @@ export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}
   const nav = document.createElement('nav');
   for (const [route, label] of tabs) {
     const a = document.createElement('a');
-    a.href = `#/` + route;
-    a.textContent = label;
+    a.href = route === 'match' ? '#/matches' : `#/` + route;
+    a.textContent = badges[route] ? `${label} (${badges[route]})` : label;
     if (activeTab === route) a.className = 'active';
     nav.append(a);
   }

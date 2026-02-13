@@ -1,9 +1,10 @@
 import { PRACTICE_FOCUS } from './constants.js';
 import { clamp } from './utils.js';
 import { computePlayerOverall } from './generator.js';
-import { simulateBo3Series } from './matchSimBo3.js';
+import { initializeLiveSeries, playLiveRounds, simLiveMap, simLiveSeries, simLiveToHalf, simulateBo3Series } from './matchSimBo3.js';
 import { applyWeeklyTraining } from './training.js';
 import { aiResolveFreeAgency } from './contracts.js';
+import { addMessage } from './messages.js';
 
 function upgradeCost(facility) {
   return Math.round(facility.baseCost * ((facility.level + 1) ** 1.5));
@@ -17,7 +18,6 @@ export function computeFacilityEffects(team) {
   const psychLevel = f.sportsPsych.level;
   const healthLevel = f.performanceHealth.level;
   const academyLevel = f.academy.level;
-
   return {
     moraleBonus: [-5, 0, 2, 5, 8, 12][officeLevel] ?? 0,
     chemistryStability: officeLevel * 2,
@@ -86,6 +86,13 @@ function contractCycle(state) {
     if (p.currentContract.yearsRemaining <= 0) {
       p.tid = null;
       p.history.push('Entered free agency');
+      addMessage(state, {
+        from: { type: 'system', name: 'League Office' },
+        subject: `${p.name} became a free agent`,
+        body: `${p.name}'s contract expired and they entered free agency.`,
+        category: 'contract',
+        related: { playerId: p.pid }
+      });
     }
   }
   aiResolveFreeAgency(state);
@@ -105,29 +112,81 @@ function applyMonthlyExpenses(state) {
   }
 }
 
-export function simulateMatch(state, match) {
-  const series = simulateBo3Series(state, match);
-  match.played = true;
-  match.result = series;
-
+function finalizeResultEffects(state, match) {
   const homeTeam = state.teams.find((t) => t.tid === match.homeTid);
   const awayTeam = state.teams.find((t) => t.tid === match.awayTid);
-  if (series.winnerTid === match.homeTid) { homeTeam.wins++; awayTeam.losses++; }
-  else { awayTeam.wins++; homeTeam.losses++; }
-
+  if (match.result.winnerTid === match.homeTid) { homeTeam.wins++; awayTeam.losses++; } else { awayTeam.wins++; homeTeam.losses++; }
   homeTeam.revenue += 45_000;
   awayTeam.revenue += 35_000;
   homeTeam.cash += 45_000;
   awayTeam.cash += 35_000;
-
   applyPracticeAndFacilities(state, match.homeTid);
   applyPracticeAndFacilities(state, match.awayTid);
+
+  const userInvolved = match.homeTid === state.userTid || match.awayTid === state.userTid;
+  if (userInvolved) {
+    addMessage(state, {
+      from: { type: 'system', name: 'Match Center' },
+      subject: `Match Result: ${match.result.summary}`,
+      body: `Series complete. Winner team id: ${match.result.winnerTid}.`,
+      category: 'match',
+      related: { matchId: match.mid }
+    });
+  }
+}
+
+export function simulateMatch(state, match) {
+  const series = simulateBo3Series(state, match);
+  match.status = 'final';
+  match.played = true;
+  match.result = series;
+  finalizeResultEffects(state, match);
+}
+
+export function openMatch(state, matchId) {
+  const match = state.schedule.find((m) => m.mid === matchId);
+  if (!match || match.status === 'final') return match;
+  if (!match.live) initializeLiveSeries(state, match);
+  match.status = 'inProgress';
+  return match;
+}
+
+export function playMatchRounds(state, matchId, n = 1) {
+  const match = openMatch(state, matchId);
+  if (!match) return null;
+  playLiveRounds(state, match, n);
+  if (match.status === 'final') finalizeResultEffects(state, match);
+  return match;
+}
+
+export function playMatchToHalf(state, matchId) {
+  const match = openMatch(state, matchId);
+  if (!match) return null;
+  simLiveToHalf(state, match);
+  if (match.status === 'final') finalizeResultEffects(state, match);
+  return match;
+}
+
+export function playMatchMap(state, matchId) {
+  const match = openMatch(state, matchId);
+  if (!match) return null;
+  simLiveMap(state, match);
+  if (match.status === 'final') finalizeResultEffects(state, match);
+  return match;
+}
+
+export function playMatchSeries(state, matchId) {
+  const match = openMatch(state, matchId);
+  if (!match) return null;
+  simLiveSeries(state, match);
+  if (match.status === 'final') finalizeResultEffects(state, match);
+  return match;
 }
 
 export function simulateNextMatchForUserTeam(state) {
-  const next = state.schedule.find((m) => !m.played && (m.homeTid === state.userTid || m.awayTid === state.userTid));
+  const next = state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
   if (!next) return null;
-  simulateMatch(state, next);
+  playMatchSeries(state, next.mid);
   state.meta.week = Math.max(state.meta.week, next.week);
   contractCycle(state);
   applyMonthlyExpenses(state);
@@ -135,8 +194,8 @@ export function simulateNextMatchForUserTeam(state) {
 }
 
 export function simulateWeek(state) {
-  const weekMatches = state.schedule.filter((m) => m.week === state.meta.week && !m.played);
-  for (const m of weekMatches) simulateMatch(state, m);
+  const weekMatches = state.schedule.filter((m) => m.week === state.meta.week && m.status !== 'final');
+  for (const m of weekMatches) playMatchSeries(state, m.mid);
   state.meta.week += 1;
   contractCycle(state);
   applyMonthlyExpenses(state);
