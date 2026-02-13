@@ -1,6 +1,9 @@
 import { PRACTICE_FOCUS } from './constants.js';
 import { clamp } from './utils.js';
 import { computePlayerOverall } from './generator.js';
+import { simulateBo3Series } from './matchSimBo3.js';
+import { applyWeeklyTraining } from './training.js';
+import { aiResolveFreeAgency } from './contracts.js';
 
 function upgradeCost(facility) {
   return Math.round(facility.baseCost * ((facility.level + 1) ** 1.5));
@@ -39,91 +42,78 @@ function totalFacilityMaintenance(team) {
   return Object.values(team.facilities).reduce((sum, item) => sum + item.baseMaintenance * item.level, 0);
 }
 
-function teamStrength(state, tid) {
+function computeTeamMeta(state, tid) {
   const team = state.teams.find((t) => t.tid === tid);
   const coach = state.coaches.find((c) => c.tid === tid && c.staffRole === 'Head Coach');
-  const roster = state.players.filter((p) => p.tid === tid);
-  const starters = roster.slice(0, 5);
-  const fx = computeFacilityEffects(team);
-  const avg = starters.reduce((sum, p) => sum + computePlayerOverall(p) + (p.roleSkills[p.currentRole] ?? 0) * 0.15, 0) / Math.max(1, starters.length);
-  const coachBoost = coach ? (coach.ratings.prep + coach.ratings.vetoSkill + coach.ratings.midSeriesAdapt) * 0.05 : 0;
-  const consistency = 1 - fx.mechanicalVarianceReduction * Math.random();
-  return (avg + coachBoost + fx.vetoBonus * 0.5) * consistency;
-}
-
-function calcScore(base, rng) {
-  return Math.round(clamp(base / 8 + rng * 10, 5, 18));
+  const roster = state.players.filter((p) => p.tid === tid).slice(0, 8);
+  const avgOvr = roster.reduce((s, p) => s + computePlayerOverall(p), 0) / Math.max(roster.length, 1);
+  team.coachQuality = coach ? Math.round((coach.ratings.prep + coach.ratings.leadership + coach.ratings.skillDevelopment) / 3) : 50;
+  team.rosterStrength = Math.round(avgOvr);
+  team.financialStability = clamp(Math.round((team.cash / Math.max(1, team.wageBudget)) * 40), 5, 95);
+  team.facilitiesLevel = Math.round(Object.values(team.facilities).reduce((s, f) => s + f.level, 0) / 30 * 100);
 }
 
 function applyPracticeAndFacilities(state, tid) {
   const team = state.teams.find((t) => t.tid === tid);
-  const coach = state.coaches.find((c) => c.tid === tid && c.staffRole === 'Head Coach');
   if (!team) return;
-
   const roster = state.players.filter((p) => p.tid === tid);
   const focus = team.practicePlan.focus;
   const intensity = team.practicePlan.intensity;
   const fx = computeFacilityEffects(team);
-  const coachDev = coach ? (coach.ratings.skillDevelopment + coach.ratings.roleDevelopment + coach.ratings.practiceDesign) / 300 : 0.45;
   const iMult = intensity === 'hard' ? 1.8 : intensity === 'light' ? 0.8 : 1.2;
 
   for (const player of roster) {
     if (PRACTICE_FOCUS.includes(focus)) {
-      const bump = (Math.random() * iMult + fx.aimGrowthBonus + coachDev) * fx.practiceMultiplier;
-      player.attrs[focus] = clamp(player.attrs[focus] + bump, 30, 99);
+      player.attrs[focus] = clamp(player.attrs[focus] + (Math.random() * iMult + fx.aimGrowthBonus) * fx.practiceMultiplier, 30, 99);
     }
-    player.roles.forEach((role) => {
-      const roleDelta = role === player.currentRole ? 0.55 : 0.2;
-      player.roleSkills[role] = clamp((player.roleSkills[role] ?? 30) + roleDelta * iMult + coachDev * 0.35, 20, 99);
-    });
+    player.roleSkills[player.currentRole] = clamp((player.roleSkills[player.currentRole] ?? 35) + 0.35 * iMult, 20, 99);
     player.ovr = computePlayerOverall(player);
-    player.history.push(`Week ${state.meta.week}: practice ${focus}/${intensity}`);
   }
 
   const cost = intensity === 'hard' ? 30_000 : intensity === 'light' ? 10_000 : 20_000;
   team.expenses += cost;
   team.cash -= cost;
+
+  applyWeeklyTraining(state, tid, fx.practiceMultiplier, 1 + fx.chemistryStability / 100);
+  computeTeamMeta(state, tid);
+}
+
+function contractCycle(state) {
+  if (state.meta.week % 12 !== 0) return;
+  for (const p of state.players) {
+    if (!p.currentContract || p.tid === null) continue;
+    p.currentContract.yearsRemaining -= 1;
+    if (p.currentContract.yearsRemaining <= 0) {
+      p.tid = null;
+      p.history.push('Entered free agency');
+    }
+  }
+  aiResolveFreeAgency(state);
 }
 
 function applyMonthlyExpenses(state) {
   if (state.meta.week % 4 !== 0) return;
   for (const team of state.teams) {
-    const playerSalaries = state.players.filter((p) => p.tid === team.tid).reduce((sum, p) => sum + p.salary, 0);
+    const playerSalaries = state.players.filter((p) => p.tid === team.tid).reduce((sum, p) => sum + (p.currentContract?.salaryPerYear ?? p.salary), 0);
     const staffSalaries = state.coaches.filter((c) => c.tid === team.tid).reduce((sum, c) => sum + c.salary, 0);
     const facilityMaintenance = totalFacilityMaintenance(team);
     const total = playerSalaries + staffSalaries + facilityMaintenance;
     team.cash -= total;
     team.expenses += total;
     team.monthlyLedger.push({ week: state.meta.week, playerSalaries, staffSalaries, facilityMaintenance, total });
+    computeTeamMeta(state, team.tid);
   }
 }
 
-function selectLineupForAI(state, tid) {
-  const teamPlayers = state.players.filter((p) => p.tid === tid);
-  teamPlayers.sort((a, b) => (b.ovr + (b.roleSkills[b.currentRole] ?? 0) * 0.2) - (a.ovr + (a.roleSkills[a.currentRole] ?? 0) * 0.2));
-}
-
 export function simulateMatch(state, match) {
-  selectLineupForAI(state, match.homeTid);
-  selectLineupForAI(state, match.awayTid);
-  const hs = teamStrength(state, match.homeTid);
-  const as = teamStrength(state, match.awayTid);
-  const homeWinChance = 1 / (1 + Math.exp(-(hs - as) / 12));
-
-  const homeWins = Math.random() < homeWinChance;
-  const homeScore = calcScore(hs, Math.random());
-  const awayScore = calcScore(as, Math.random());
-
+  const series = simulateBo3Series(state, match);
   match.played = true;
-  match.result = {
-    homeScore: homeWins ? Math.max(homeScore, awayScore + 2) : Math.min(homeScore, awayScore - 1),
-    awayScore: homeWins ? Math.min(awayScore, homeScore - 1) : Math.max(awayScore, homeScore + 2),
-    winnerTid: homeWins ? match.homeTid : match.awayTid
-  };
+  match.result = series;
 
   const homeTeam = state.teams.find((t) => t.tid === match.homeTid);
   const awayTeam = state.teams.find((t) => t.tid === match.awayTid);
-  if (homeWins) { homeTeam.wins++; awayTeam.losses++; } else { awayTeam.wins++; homeTeam.losses++; }
+  if (series.winnerTid === match.homeTid) { homeTeam.wins++; awayTeam.losses++; }
+  else { awayTeam.wins++; homeTeam.losses++; }
 
   homeTeam.revenue += 45_000;
   awayTeam.revenue += 35_000;
@@ -139,6 +129,7 @@ export function simulateNextMatchForUserTeam(state) {
   if (!next) return null;
   simulateMatch(state, next);
   state.meta.week = Math.max(state.meta.week, next.week);
+  contractCycle(state);
   applyMonthlyExpenses(state);
   return next;
 }
@@ -147,6 +138,7 @@ export function simulateWeek(state) {
   const weekMatches = state.schedule.filter((m) => m.week === state.meta.week && !m.played);
   for (const m of weekMatches) simulateMatch(state, m);
   state.meta.week += 1;
+  contractCycle(state);
   applyMonthlyExpenses(state);
   return weekMatches.length;
 }

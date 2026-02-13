@@ -8,10 +8,30 @@ const TEAM_SEED = [
 export const TEAMS = TEAM_SEED.map(([name, abbrev, region], tid) => ({ tid, name, abbrev, region, tier: 'Tier 1' }));
 
 export const ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex'];
-export const SECONDARY_ROLE_TAGS = ['IGL', 'Second Caller', 'Oper', 'Entry', 'Lurker', 'Anchor', 'Support'];
+export const SECONDARY_ROLE_TAGS = ['None', 'IGL', 'Second Caller', 'Oper', 'Entry', 'Lurker', 'Anchor', 'Support'];
 export const PRACTICE_FOCUS = ['aim', 'utility', 'clutch', 'mental'];
+export const TRAINING_PRIMARY = ['Duelist', 'Initiator', 'Controller', 'Sentinel'];
+export const TRAINING_SECONDARY = ['None', 'Aim', 'Clutch', 'Utility usage', 'Mental resilience', 'Decision making', 'Duelist', 'Initiator', 'Controller', 'Sentinel'];
 export const INTENSITIES = ['light', 'normal', 'hard'];
 export const ROSTER_LIMIT = 10;
+
+export const MAP_POOL = [
+  { id: 'ascent', name: 'Ascent', atkBias: 0.00, defBias: 0.03 },
+  { id: 'bind', name: 'Bind', atkBias: 0.02, defBias: 0.01 },
+  { id: 'haven', name: 'Haven', atkBias: 0.01, defBias: 0.01 },
+  { id: 'lotus', name: 'Lotus', atkBias: 0.03, defBias: -0.01 },
+  { id: 'sunset', name: 'Sunset', atkBias: 0.02, defBias: 0.00 },
+  { id: 'icebox', name: 'Icebox', atkBias: 0.01, defBias: 0.02 },
+  { id: 'split', name: 'Split', atkBias: -0.02, defBias: 0.04 }
+];
+
+export const AGENT_POOL = {
+  Duelist: ['Jett', 'Raze', 'Reyna'],
+  Controller: ['Omen', 'Brimstone', 'Astra'],
+  Initiator: ['Sova', 'Skye', 'KAY/O'],
+  Sentinel: ['Killjoy', 'Cypher', 'Sage'],
+  Flex: ['Yoru', 'Gekko', 'Viper']
+};
 
 export const FACILITY_CONFIG = {
   officeQuality: { label: 'Office Quality', baseCost: 70000, baseMaintenance: 7000, maxLevel: 5 },
