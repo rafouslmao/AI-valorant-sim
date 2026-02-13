@@ -13,7 +13,10 @@ import {
   renderPlayerDetail,
   renderPlayers,
   renderPractice,
-  renderRoster
+  renderRoster,
+  renderStaff,
+  simulateNextAction,
+  simulateWeekAction
 } from './ui/pages/career.js';
 
 const app = document.getElementById('app');
@@ -32,22 +35,20 @@ function renderCareer(path, params) {
     if (route === 'matches') return renderMatches(main, state);
     if (route === 'players') return renderPlayers(main, state);
     if (route === 'free-agents') return renderFreeAgents(main, state);
+    if (route === 'staff') return renderStaff(main, state);
     if (route === 'finances') return renderFinances(main, state);
     if (route === 'practice') return renderPractice(main, state);
     if (route === 'facilities') return renderFacilities(main, state);
     if (route === 'player') return renderPlayerDetail(main, state, params.get('id'));
     if (route === 'coach') return renderCoachDetail(main, state, params.get('id'));
     main.innerHTML = '<h1>Not Found</h1>';
-  });
+  }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction });
 }
 
 function renderApp() {
   if (!ensureRouteGuards()) return;
   const { path, params } = parseHash();
-  if (path === '/start') {
-    renderStartPage(app);
-    return;
-  }
+  if (path === '/start') return renderStartPage(app);
   renderCareer(path, params);
 }
 

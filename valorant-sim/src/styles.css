@@ -16,3 +16,7 @@ th, td { border: 1px solid #293043; padding: 8px; }
 .sidebar nav a { padding: 8px; border-radius: 6px; color: #cbd5e1; }
 .sidebar nav a.active, .sidebar nav a:hover { background: #2563eb; color: #fff; }
 main { padding: 20px; }
+.main-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.top-actions { display: flex; gap: 8px; }
+.top-actions button { min-width: 130px; }
+code { background: #0b1220; padding: 2px 6px; border-radius: 5px; }

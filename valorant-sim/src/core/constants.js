@@ -1,64 +1,23 @@
 const TEAM_SEED = [
-  // Americas VCT
-  ['Sentinels', 'SEN', 'Americas'],
-  ['NRG', 'NRG', 'Americas'],
-  ['G2 Esports', 'G2', 'Americas'],
-  ['Cloud9', 'C9', 'Americas'],
-  ['100 Thieves', '100T', 'Americas'],
-  ['Evil Geniuses', 'EG', 'Americas'],
-  ['LOUD', 'LOUD', 'Americas'],
-  ['Leviatán', 'LEV', 'Americas'],
-  ['KRÜ Esports', 'KRU', 'Americas'],
-  ['MIBR', 'MIBR', 'Americas'],
-  ['FURIA', 'FUR', 'Americas'],
-
-  // EMEA VCT
-  ['Fnatic', 'FNC', 'EMEA'],
-  ['Team Heretics', 'TH', 'EMEA'],
-  ['Natus Vincere', 'NAVI', 'EMEA'],
-  ['FUT Esports', 'FUT', 'EMEA'],
-  ['Team Vitality', 'VIT', 'EMEA'],
-  ['Karmine Corp', 'KC', 'EMEA'],
-  ['BBL Esports', 'BBL', 'EMEA'],
-  ['GIANTX', 'GX', 'EMEA'],
-  ['KOI', 'KOI', 'EMEA'],
-  ['Gentle Mates', 'M8', 'EMEA'],
-  ['Apeks', 'APK', 'EMEA'],
-
-  // Pacific VCT
-  ['Paper Rex', 'PRX', 'Pacific'],
-  ['DRX', 'DRX', 'Pacific'],
-  ['Gen.G', 'GEN', 'Pacific'],
-  ['T1', 'T1', 'Pacific'],
-  ['Talon Esports', 'TLN', 'Pacific'],
-  ['ZETA DIVISION', 'ZETA', 'Pacific'],
-  ['DetonatioN FocusMe', 'DFM', 'Pacific'],
-  ['Global Esports', 'GE', 'Pacific'],
-  ['Rex Regum Qeon', 'RRQ', 'Pacific'],
-  ['Team Secret', 'TS', 'Pacific'],
-
-  // China VCT
-  ['EDward Gaming', 'EDG', 'China'],
-  ['FunPlus Phoenix', 'FPX', 'China'],
-  ['Trace Esports', 'TE', 'China'],
-  ['Bilibili Gaming', 'BLG', 'China'],
-  ['JD Gaming', 'JDG', 'China'],
-  ['Nova Esports', 'NOVA', 'China'],
-  ['TYLOO', 'TYL', 'China'],
-  ['Wolves Esports', 'WOL', 'China'],
-  ['Dragon Ranger Gaming', 'DRG', 'China'],
-  ['All Gamers', 'AG', 'China']
+  ['Sentinels', 'SEN', 'Americas'], ['NRG', 'NRG', 'Americas'], ['G2 Esports', 'G2', 'Americas'], ['Cloud9', 'C9', 'Americas'], ['100 Thieves', '100T', 'Americas'], ['Evil Geniuses', 'EG', 'Americas'], ['LOUD', 'LOUD', 'Americas'], ['Leviatán', 'LEV', 'Americas'], ['KRÜ Esports', 'KRU', 'Americas'], ['MIBR', 'MIBR', 'Americas'], ['FURIA', 'FUR', 'Americas'],
+  ['Fnatic', 'FNC', 'EMEA'], ['Team Heretics', 'TH', 'EMEA'], ['Natus Vincere', 'NAVI', 'EMEA'], ['FUT Esports', 'FUT', 'EMEA'], ['Team Vitality', 'VIT', 'EMEA'], ['Karmine Corp', 'KC', 'EMEA'], ['BBL Esports', 'BBL', 'EMEA'], ['GIANTX', 'GX', 'EMEA'], ['KOI', 'KOI', 'EMEA'], ['Gentle Mates', 'M8', 'EMEA'], ['Apeks', 'APK', 'EMEA'],
+  ['Paper Rex', 'PRX', 'Pacific'], ['DRX', 'DRX', 'Pacific'], ['Gen.G', 'GEN', 'Pacific'], ['T1', 'T1', 'Pacific'], ['Talon Esports', 'TLN', 'Pacific'], ['ZETA DIVISION', 'ZETA', 'Pacific'], ['DetonatioN FocusMe', 'DFM', 'Pacific'], ['Global Esports', 'GE', 'Pacific'], ['Rex Regum Qeon', 'RRQ', 'Pacific'], ['Team Secret', 'TS', 'Pacific'],
+  ['EDward Gaming', 'EDG', 'China'], ['FunPlus Phoenix', 'FPX', 'China'], ['Trace Esports', 'TE', 'China'], ['Bilibili Gaming', 'BLG', 'China'], ['JD Gaming', 'JDG', 'China'], ['Nova Esports', 'NOVA', 'China'], ['TYLOO', 'TYL', 'China'], ['Wolves Esports', 'WOL', 'China'], ['Dragon Ranger Gaming', 'DRG', 'China'], ['All Gamers', 'AG', 'China']
 ];
 
-export const TEAMS = TEAM_SEED.map(([name, abbrev, region], tid) => ({
-  tid,
-  name,
-  abbrev,
-  region,
-  tier: 'Tier 1'
-}));
+export const TEAMS = TEAM_SEED.map(([name, abbrev, region], tid) => ({ tid, name, abbrev, region, tier: 'Tier 1' }));
 
 export const ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex'];
+export const SECONDARY_ROLE_TAGS = ['IGL', 'Second Caller', 'Oper', 'Entry', 'Lurker', 'Anchor', 'Support'];
 export const PRACTICE_FOCUS = ['aim', 'utility', 'clutch', 'mental'];
 export const INTENSITIES = ['light', 'normal', 'hard'];
 export const ROSTER_LIMIT = 10;
+
+export const FACILITY_CONFIG = {
+  officeQuality: { label: 'Office Quality', baseCost: 70000, baseMaintenance: 7000, maxLevel: 5 },
+  pcEquipment: { label: 'PC / Equipment Quality', baseCost: 90000, baseMaintenance: 9000, maxLevel: 5 },
+  analystDept: { label: 'Analyst Department', baseCost: 110000, baseMaintenance: 11000, maxLevel: 5 },
+  sportsPsych: { label: 'Sports Psychology', baseCost: 100000, baseMaintenance: 10000, maxLevel: 5 },
+  performanceHealth: { label: 'Performance & Health Staff', baseCost: 95000, baseMaintenance: 9500, maxLevel: 5 },
+  academy: { label: 'Youth / Academy Investment', baseCost: 130000, baseMaintenance: 12000, maxLevel: 5 }
+};
