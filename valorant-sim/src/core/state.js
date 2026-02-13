@@ -70,8 +70,12 @@ let world = normalizeWorld(loadFromSlot());
 
 export function getWorld() { return world; }
 
+// setWorld is for in-memory assignment of already-loaded data; no auto-persist.
 export function setWorld(next) {
   world = normalizeWorld(next);
+}
+
+export function persistWorld() {
   if (world) saveToSlot(world);
 }
 
