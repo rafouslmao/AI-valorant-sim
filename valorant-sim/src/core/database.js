@@ -548,8 +548,69 @@ Free Agents | Instxnct | duelist/initiator/flex | 21 | Canada | https://www.vlr.
 Free Agents | JustnatioNN | controller/sentinel/initiator | 27 | Kuwait | https://www.vlr.gg/img/base/ph/sil.png | false | true
 Free Agents | BRIAN | sentinel/duelist | 20 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true`;
 
+
+
+const MASTER_PLAYERS_TEXT_EXTRA_2 = `Team | Name | Role(s) | Age | Nationality | ImageURL | Starter | FreeAgent
+Free Agents | Maka | flex/sentinel/duelist/controller/initiator | 23 | Mexico | https://owcdn.net/img/63e0cc941304f.png | false | true
+Free Agents | clutchz | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ju4nn | flex/sentinel/duelist/controller/initiator | 22 | Venezuela | https://owcdn.net/img/685084df0e61a.png | false | true
+Free Agents | E13 | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | RAINMAKER | flex/sentinel/duelist/controller/initiator | 21 | Guatemala | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Hada | flex/sentinel/duelist/controller/initiator | 19 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Yarwiz | flex/sentinel/duelist/controller/initiator | 23 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Xhowi | flex/sentinel/duelist/controller/initiator | 23 | Dominican_Republic | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Fotzy | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Danielesflo | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://owcdn.net/img/6275b85c4bc27.png | false | true
+Free Agents | vApes | flex/sentinel/duelist/controller/initiator | 23 | Colombia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+LEVIATÁN | Neon | duelist/sentinel/flex/oper | 18 | Argentina | https://owcdn.net/img/69234b3d0a58d.png | true | false
+KRÜ Esports | Dantedeu5 | duelist | 18 | Argentina | https://owcdn.net/img/687bfa8d54924.png | true | false
+Free Agents | ghoul33 | duelist/sentinel | 19 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+LEVIATÁN | blowz | initiator/flex | 18 | Brazil | https://owcdn.net/img/69234aef86f4b.png | true | false
+Free Agents | david | flex/sentinel/duelist/controller/initiator | 21 | Chile | https://owcdn.net/img/67abe1e07b7a0.png | false | true
+Free Agents | phc | controller/sentinel | 19 | Brazil | https://owcdn.net/img/67b7709229c18.png | false | true
+Free Agents | suther | flex/sentinel/duelist/controller/initiator | 23 | Chile | https://owcdn.net/img/609f0798e6de3.png | false | true
+Free Agents | Mystizip | flex/sentinel/duelist/controller/initiator | 19 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ganter | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | benG | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://owcdn.net/img/65d8e2f1e011b.png | false | true
+Free Agents | Mikey Tap | sentinel/duelist/initiator | 18 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jotinha | flex/sentinel/duelist/controller/initiator | 21 | Argentina | https://owcdn.net/img/672c03fc9d63a.png | false | true
+Free Agents | vaiZ | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://owcdn.net/img/67ca0a43a1fa8.png | false | true
+Free Agents | alca | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://owcdn.net/img/639aa344f0379.png | false | true
+Free Agents | NicoMachine | flex/sentinel/duelist/controller/initiator | 20 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | bnj | flex/sentinel/duelist/controller/initiator | 22 | Argentina | https://owcdn.net/img/672c03e2b0cef.png | false | true
+Free Agents | MiradaNinja | sentinel/controller/flex | 18 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Tio | flex/sentinel/duelist/controller/initiator | 20 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+TYLOO | Erv | controller/sentinel | 18 | China | https://www.vlr.gg/img/base/ph/sil.png | false | false
+Free Agents | tinchoff | flex/sentinel/duelist/controller/initiator | 25 | Argentina | https://owcdn.net/img/692da72926318.png | false | true
+Free Agents | ruso | flex/sentinel/duelist/controller/initiator | 23 | Argentina | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Miyeon | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://owcdn.net/img/6861a24b8e1c8.png | false | true
+Free Agents | lucasvade | flex/sentinel/duelist/controller/initiator | 19 | Chile | https://owcdn.net/img/609f0174379cc.png | false | true
+Free Agents | 21 | flex/sentinel/duelist/controller/initiator | 21 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | 1kuzohh | flex/sentinel/duelist/controller/initiator | 22 | Chile | https://owcdn.net/img/6532d1d5affb4.png | false | true
+Free Agents | KNZY | flex/sentinel/duelist/controller/initiator | 20 | Chile | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mathi | flex/sentinel/duelist/controller/initiator | 19 | Uruguay | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ego1st | flex/sentinel/duelist/controller/initiator | 21 | Uruguay | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | FETA | flex/sentinel/duelist/controller/initiator | 20 | New_Zealand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | FalleN | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | NOVAE | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ACE | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | genk | flex/sentinel/duelist/controller/initiator | 22 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | OvO | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | devid | flex/sentinel/duelist/controller/initiator | 20 | Cambodia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Minimise | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://owcdn.net/img/6537a3472bff3.png | false | true
+Free Agents | joms | flex/sentinel/duelist/controller/initiator | 21 | China | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LEW | flex/sentinel/duelist/controller/initiator | 21 | United_Kingdom | https://owcdn.net/img/68453d486dff1.png | false | true
+Free Agents | iBrocky | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Smylie | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jawsy | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | WATER | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ANDY | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | LOATHE | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | KADIRI | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true`;
+
 export const IMPORTED_SEED_DB = buildSeedDatabaseFromText(`${MASTER_PLAYERS_TEXT}
-${MASTER_PLAYERS_TEXT_EXTRA}`);
+${MASTER_PLAYERS_TEXT_EXTRA}
+${MASTER_PLAYERS_TEXT_EXTRA_2}`);
 
 export const REAL_TEAM_DATABASE = IMPORTED_SEED_DB.teams;
 export const REAL_IMPORTED_PLAYERS = IMPORTED_SEED_DB.players;
