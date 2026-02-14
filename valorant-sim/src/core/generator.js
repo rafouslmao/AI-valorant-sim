@@ -1,5 +1,5 @@
 import { AGENT_ROLES, FACILITY_CONFIG, MAP_POOL, PRACTICE_FOCUS, ROLES } from './constants.js';
-import { REAL_FREE_AGENTS, REAL_TEAM_DATABASE } from './database.js';
+import { REAL_IMPORTED_PLAYERS, REAL_TEAM_DATABASE } from './database.js';
 import { randInt, uid, weightedPick } from './utils.js';
 
 const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES', 'KR'];
@@ -46,7 +46,7 @@ function initAgentPool(primaryRole, seedKey) {
       affinities[agents[(seed + 2) % agents.length]] = seededRange(seed * (agents.length + 1), 55, 90);
     }
   } else {
-    const agents = AGENT_ROLES[primaryRole] || [];
+    const agents = AGENT_ROLES[primaryRole] || AGENT_ROLES.Initiator;
     const a1 = agents[seed % agents.length];
     const a2 = agents[(seed + 3) % agents.length];
     affinities[a1] = seededRange(seed * 2, 65, 96);
@@ -56,48 +56,52 @@ function initAgentPool(primaryRole, seedKey) {
   return { primaryRole: normalizedRole, affinities };
 }
 
-function parseRole(roleRaw) {
-  if (!roleRaw) return ['Flex'];
-  return roleRaw.split('/').map((r) => r.trim()).filter(Boolean).map((r) => {
-    const lower = r.toLowerCase();
-    if (lower === 'duelist') return 'Duelist';
-    if (lower === 'initiator') return 'Initiator';
-    if (lower === 'controller') return 'Controller';
-    if (lower === 'sentinel') return 'Sentinel';
-    return 'Flex';
-  });
+function cleanRole(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'duelist') return 'Duelist';
+  if (v === 'initiator') return 'Initiator';
+  if (v === 'controller') return 'Controller';
+  if (v === 'sentinel') return 'Sentinel';
+  return 'Flex';
 }
 
-function createRealPlayer(spec, tid) {
-  const [ign, roleRaw = 'Flex', tagsRaw = ''] = spec.split('|');
-  const roles = parseRole(roleRaw);
-  const primaryRole = roles[0] || 'Flex';
-  const seedKey = `${ign}-${tid}`;
+function createImportedPlayer(seedPlayer) {
+  const roles = Array.from(new Set((seedPlayer.roles || []).map((r) => cleanRole(r))));
+  const primaryRole = cleanRole(seedPlayer.primaryRole || roles[0]);
+  const seedKey = `${seedPlayer.name}-${seedPlayer.teamName || 'FA'}`;
   const attrs = genAttributes(seedKey);
-  const salary = seededRange(hashNum(`${ign}-salary`), 38000, 115000);
-  const tags = tagsRaw ? tagsRaw.split('/').map((t) => t.trim()) : [];
+  const salary = seededRange(hashNum(`${seedPlayer.name}-salary`), 38000, 115000);
 
   const player = {
     pid: uid('p'),
-    tid,
-    name: ign,
-    age: seededRange(hashNum(`${ign}-age`), 17, 30),
+    tid: seedPlayer.freeAgent ? null : seedPlayer.teamId,
+    name: seedPlayer.name,
+    age: seedPlayer.age,
+    nationality: seedPlayer.nationality,
+    imageURL: seedPlayer.imageURL,
     salary,
-    reputation: seededRange(hashNum(`${ign}-rep`), 45, 92),
-    ambition: seededRange(hashNum(`${ign}-amb`), 25, 95),
-    loyalty: seededRange(hashNum(`${ign}-loy`), 20, 95),
-    greed: seededRange(hashNum(`${ign}-greed`), 20, 95),
-    playtimeDesire: seededRange(hashNum(`${ign}-pt`), 35, 95),
+    reputation: seededRange(hashNum(`${seedPlayer.name}-rep`), 45, 92),
+    ambition: seededRange(hashNum(`${seedPlayer.name}-amb`), 25, 95),
+    loyalty: seededRange(hashNum(`${seedPlayer.name}-loy`), 20, 95),
+    greed: seededRange(hashNum(`${seedPlayer.name}-greed`), 20, 95),
+    playtimeDesire: seededRange(hashNum(`${seedPlayer.name}-pt`), 35, 95),
     preferredRole: primaryRole,
     attrs,
     roles,
     currentRole: primaryRole,
-    secondaryRoleTag: tags.find((t) => ['IGL', 'Entry', 'Oper'].includes(t)) || 'None',
-    roleSkills: Object.fromEntries(ROLES.map((r) => [r, seededRange(hashNum(`${ign}-${r}`), r === primaryRole ? 60 : 35, r === primaryRole ? 90 : 75)])),
+    secondaryRoleTag: (seedPlayer.tags || [])[0] || 'None',
+    roleSkills: Object.fromEntries(ROLES.map((r) => [r, seededRange(hashNum(`${seedPlayer.name}-${r}`), r === primaryRole ? 60 : 35, r === primaryRole ? 90 : 75)])),
     agentPool: initAgentPool(primaryRole, seedKey),
     trainingPlan: { primaryFocus: primaryRole === 'Flex' ? 'Initiator' : primaryRole, secondaryFocus: 'None', intensity: 'normal' },
-    currentContract: { salaryPerYear: salary, yearsRemaining: seededRange(hashNum(`${ign}-years`), 1, 3), signedWithTid: tid, buyoutClause: Math.round(salary * 3), rolePromise: tags.includes('Bench') ? 'bench' : 'starter', signingBonus: Math.round(salary * 0.2) },
-    isStarter: !tags.includes('Bench'),
+    currentContract: {
+      salaryPerYear: salary,
+      yearsRemaining: seedPlayer.freeAgent ? 0 : seededRange(hashNum(`${seedPlayer.name}-years`), 1, 3),
+      signedWithTid: seedPlayer.freeAgent ? null : seedPlayer.teamId,
+      buyoutClause: Math.round(salary * 3),
+      rolePromise: seedPlayer.starter ? 'starter' : 'bench',
+      signingBonus: Math.round(salary * 0.2)
+    },
+    isStarter: Boolean(seedPlayer.starter && !seedPlayer.freeAgent),
     history: [],
     seasonStats: {}
   };
@@ -195,37 +199,28 @@ function initialSponsorOffers(teams) {
 export function generateWorld({ userTid, mode, saveName, userName }) {
   const year = 2027;
   const teams = REAL_TEAM_DATABASE.map((t, tid) => createTeam(t, tid));
-  const players = [];
+  const players = REAL_IMPORTED_PLAYERS.map((p) => createImportedPlayer(p));
   const coaches = [];
 
-  REAL_TEAM_DATABASE.forEach((teamSeed, idx) => {
-    const team = teams[idx];
-    if (mode === 'Coach' && idx === userTid) {
+  for (const team of teams) {
+    if (mode === 'Coach' && team.tid === userTid) {
       const userCoach = createCoach(team.tid, 'Head Coach', userName);
       coaches.push(userCoach);
       team.headCoachId = userCoach.cid;
     } else {
-      const hc = createCoach(team.tid, 'Head Coach', teamSeed.coach);
+      const hc = createCoach(team.tid, 'Head Coach', `Coach ${team.name}`);
       coaches.push(hc);
       team.headCoachId = hc.cid;
     }
+  }
 
-    const teamPlayers = teamSeed.roster.map((spec) => createRealPlayer(spec, team.tid));
-    players.push(...teamPlayers);
+  for (const team of teams) {
+    const teamPlayers = players.filter((p) => p.tid === team.tid);
     team.starters = teamPlayers.filter((p) => p.isStarter).slice(0, 5).map((p) => p.pid);
-  });
-
-
-  for (const spec of REAL_FREE_AGENTS) {
-    const fa = createRealPlayer(spec, null);
-    fa.tid = null;
-    fa.isStarter = false;
-    fa.currentContract = { salaryPerYear: fa.salary, yearsRemaining: 0, signedWithTid: null, buyoutClause: 0, rolePromise: 'bench', signingBonus: 0 };
-    players.push(fa);
   }
 
   return {
-    rules: { allowDuplicateAgentsSameTeam: false },
+    rules: { allowDuplicateAgentsSameTeam: true },
     meta: { leagueName: 'Valorant Global Circuit', year, week: 1, mode, saveName, userName, godMode: true, createdAt: Date.now() },
     userTid,
     teams,

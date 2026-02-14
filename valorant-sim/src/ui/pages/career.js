@@ -279,7 +279,7 @@ export function renderPlayers(main, state) {
     const team = state.teams.find((t) => t.tid === tid);
     return teamDisplayAbbrev(team);
   };
-  main.innerHTML = `<h1>Players</h1><table><tr><th>Name</th><th>Team</th><th>OVR</th><th>Roles</th><th>Agent Pool Size</th></tr>${players.map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${teamName(p.tid)}</td><td>${p.ovr}</td><td>${p.roles.join(', ')}</td><td>${Object.keys(p.agentPool.affinities || {}).length}</td></tr>`).join('')}</table>`;
+  main.innerHTML = `<h1>Players</h1><table><tr><th>Image</th><th>Name</th><th>Team</th><th>Roles</th><th>Age</th><th>Nationality</th><th>OVR</th></tr>${players.map((p) => `<tr><td>${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:42px;height:42px;object-fit:cover;border-radius:6px;"/>` : '-'}</td><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${teamName(p.tid)}</td><td>${p.roles.join(', ')}</td><td>${p.age ?? '-'}</td><td>${String(p.nationality || '-').replaceAll('_', ' ')}</td><td>${p.ovr}</td></tr>`).join('')}</table>`;
 }
 
 function recommendationPayload(state, p) {
@@ -484,7 +484,7 @@ export function renderPlayerDetail(main, state, id) {
     const dpm = (st.deaths / Math.max(1, st.mapsPlayed)).toFixed(2);
     return `<tr><td>${season}</td><td>${st.kills}</td><td>${st.deaths}</td><td>${st.assists}</td><td>${kd}</td><td>${kpm}</td><td>${dpm}</td><td>${st.mapsPlayed}</td><td>${st.mostKillsInMap || 0}</td></tr>`;
   }).join('');
-  main.innerHTML = `<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>OVR: ${p.ovr}</p><p>Roles: ${p.roles.join(', ')} | Current: ${p.currentRole} | Secondary Tag: ${p.secondaryRoleTag}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><p>${attrs}</p>
+  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>OVR: ${p.ovr}</p><p>Roles: ${p.roles.join(', ')} | Current: ${p.currentRole} | Secondary Tag: ${p.secondaryRoleTag}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><p>${attrs}</p>
   <h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
 }
 

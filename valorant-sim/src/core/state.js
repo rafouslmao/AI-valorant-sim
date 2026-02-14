@@ -6,6 +6,9 @@ function ensurePlayerShape(player) {
   if (!player.currentRole) player.currentRole = player.roles[0];
   if (!player.secondaryRoleTag) player.secondaryRoleTag = 'None';
   if (!player.salary) player.salary = 25000;
+  if (!player.age) player.age = 20;
+  if (!player.nationality) player.nationality = 'UNKNOWN';
+  if (!player.imageURL) player.imageURL = '';
   if (!player.reputation) player.reputation = 50;
   if (!player.ambition) player.ambition = 50;
   if (!player.loyalty) player.loyalty = 50;
@@ -90,7 +93,7 @@ export function normalizeWorld(world) {
   if (!world.messages) world.messages = [];
   if (!world.facilityRequests) world.facilityRequests = [];
   if (!world.sponsors) world.sponsors = { active: [], offers: [], history: [] };
-  if (!world.rules) world.rules = { allowDuplicateAgentsSameTeam: false };
+  if (!world.rules) world.rules = { allowDuplicateAgentsSameTeam: true };
   if (!world.history) world.history = { seasons: {}, matches: {} };
   if (!world.history.seasons) world.history.seasons = {};
   if (!world.history.matches) world.history.matches = {};
