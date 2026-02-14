@@ -33,6 +33,20 @@ function recordFromSchedule(state, tid) {
   return `${w}-${l}`;
 }
 
+function recordFromMatchList(matches, tid) {
+  let w = 0; let l = 0;
+  for (const m of matches) {
+    const winnerTid = m.result?.winnerTid;
+    if (winnerTid == null || (m.homeTid !== tid && m.awayTid !== tid)) continue;
+    if (winnerTid === tid) w++; else l++;
+  }
+  return `${w}-${l}`;
+}
+
+function currentSeasonMatches(state) {
+  return state.schedule.filter((m) => m.season === state.meta.year);
+}
+
 export function getLayoutBadges(state) { return { messages: getUnreadCount(state) || undefined }; }
 export function simulateNextAction() { mutateWorld((w) => simulateNextMatchForUserTeam(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
 export function simulateWeekAction() { mutateWorld((w) => simulateWeek(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
@@ -93,21 +107,48 @@ function matchResultText(state, m) {
 }
 
 export function renderMatches(main, state) {
-  const matches = state.schedule.filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
+  const seasonParam = new URLSearchParams(window.location.hash.split('?')[1] || '').get('season');
+  const selectedSeason = Number(seasonParam || state.meta.year);
   const teamByTid = (tid) => state.teams.find((t) => t.tid === tid);
-  main.innerHTML = `<h1>Matches</h1><table><tr><th>Week</th><th>Match</th><th>User W-L</th><th>Opp W-L</th><th>Status</th><th></th></tr>${matches.map((m) => {
-    const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
-    const home = teamByTid(m.homeTid); const away = teamByTid(m.awayTid);
-    return `<tr><td>${m.week}</td><td>${home.abbrev} vs ${away.abbrev}</td><td>${recordFromSchedule(state, state.userTid)}</td><td>${recordFromSchedule(state, oppTid)}</td><td>${matchResultText(state, m)}</td><td>${m.status === 'final' ? `<a href="#/match?id=${m.mid}">View Result</a>` : `<a href="#/match?id=${m.mid}">Open Match</a>`}</td></tr>`;
-  }).join('')}</table>`;
+  const historySeasons = Object.keys(state.history?.seasons || {}).map(Number).sort((a, b) => b - a);
+  const seasonOptions = [state.meta.year, ...historySeasons.filter((y) => y !== state.meta.year)].sort((a, b) => b - a);
+
+  if (selectedSeason === state.meta.year) {
+    const matches = currentSeasonMatches(state).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
+    main.innerHTML = `<h1>Matches</h1><label>Season <select id="season-select">${seasonOptions.map((y) => `<option value="${y}" ${y === selectedSeason ? 'selected' : ''}>${y}</option>`).join('')}</select></label><table><tr><th>Week</th><th>Match</th><th>User W-L</th><th>Opp W-L</th><th>Status</th><th></th></tr>${matches.map((m) => {
+      const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
+      const home = teamByTid(m.homeTid); const away = teamByTid(m.awayTid);
+      return `<tr><td>${m.week}</td><td>${home.abbrev} vs ${away.abbrev}</td><td>${recordFromMatchList(matches, state.userTid)}</td><td>${recordFromMatchList(matches, oppTid)}</td><td>${matchResultText(state, m)}</td><td>${m.status === 'final' ? `<a href="#/match?id=${m.mid}">View Result</a>` : `<a href="#/match?id=${m.mid}">Open Match</a>`}</td></tr>`;
+    }).join('')}</table>`;
+  } else {
+    const archive = state.history?.seasons?.[selectedSeason];
+    const matches = (archive?.schedule || []).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
+    main.innerHTML = `<h1>Matches</h1><label>Season <select id="season-select">${seasonOptions.map((y) => `<option value="${y}" ${y === selectedSeason ? 'selected' : ''}>${y}</option>`).join('')}</select></label><p>Past season (read-only)</p><table><tr><th>Week</th><th>Match</th><th>User W-L</th><th>Opp W-L</th><th>Status</th><th></th></tr>${matches.map((m) => {
+      const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
+      const home = teamByTid(m.homeTid); const away = teamByTid(m.awayTid);
+      return `<tr><td>${m.week}</td><td>${home.abbrev} vs ${away.abbrev}</td><td>${recordFromMatchList(matches, state.userTid)}</td><td>${recordFromMatchList(matches, oppTid)}</td><td>${m.status || 'Final'}</td><td><a href="#/match?id=${m.matchId}&season=${selectedSeason}">View Result</a></td></tr>`;
+    }).join('') || '<tr><td colspan="6">No archived matches.</td></tr>'}</table>`;
+  }
+
+  const sel = main.querySelector('#season-select');
+  if (sel) sel.onchange = (e) => { window.location.hash = `#/matches?season=${e.target.value}`; };
 }
 
 export function renderMatchView(main, state, id) {
-  const userMatches = state.schedule.filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
-  const match = userMatches.find((m) => m.mid === id) || userMatches.find((m) => m.status !== 'final') || userMatches[0];
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const requestedSeason = Number(params.get('season') || state.meta.year);
+  const isHistory = requestedSeason !== state.meta.year;
+
+  const currentUserMatches = currentSeasonMatches(state).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
+  let match = null;
+  if (isHistory) {
+    match = state.history?.matches?.[id] || null;
+  } else {
+    match = currentUserMatches.find((m) => m.mid === id) || currentUserMatches.find((m) => m.status !== 'final') || currentUserMatches[0];
+    if (match) mutateWorld((w) => openMatch(w, match.mid));
+  }
   if (!match) return (main.innerHTML = '<p>No user matches.</p>');
 
-  mutateWorld((w) => openMatch(w, match.mid));
   const team = getUserTeam(state);
   const start = starters(state, team.tid);
   const lineupWarning = start.length < 5 ? '<p class="error">Need 5 starters before match can begin.</p>' : '';
@@ -163,7 +204,7 @@ export function renderMatchView(main, state, id) {
   <p>Series: ${live ? `${live.seriesScore[match.homeTid]}-${live.seriesScore[match.awayTid]}` : match.result?.summary || '-'}</p>
   <p>Round score: ${scoreLine}</p>
   <p>Starters: ${start.map((p) => `${p.name} (${p.currentRole})`).join(', ') || 'None'}</p>
-  <div class="top-actions"><button id="r1">Play Next Round</button><button id="r3">Play Next 3 Rounds</button><button id="half">Sim to Half</button><button id="map">Sim Map</button><button id="series">Sim Series</button></div>
+  ${isHistory ? '<p><em>Archived match (read-only)</em></p>' : '<div class="top-actions"><button id="r1">Play Next Round</button><button id="r3">Play Next 3 Rounds</button><button id="half">Sim to Half</button><button id="map">Sim Map</button><button id="series">Sim Series</button></div>'}
   <h3>Round Timeline</h3><div class="card">${timeline}</div>
   <h3>Key Moments</h3><ul>${keyMoments}</ul>
   <h3>Economy Panel</h3><table><tr><th>Round</th><th>Home</th><th>Away</th></tr>${econRows || '<tr><td colspan="3">No data</td></tr>'}</table>
@@ -174,15 +215,17 @@ export function renderMatchView(main, state, id) {
   <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/Ace</th><th>Rating</th></tr>${awayBoxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
   <pre>${(live?.log || []).slice(-16).join('\n')}</pre>`;
 
-  const canPlay = start.length >= 5;
+  const canPlay = !isHistory && start.length >= 5;
   ['#r1', '#r3', '#half', '#map', '#series'].forEach((idBtn) => { const el = main.querySelector(idBtn); if (el && !canPlay) el.disabled = true; });
   const refresh = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
-  main.querySelector('#box-select').onchange = (e) => { const base = `#/match?id=${match.mid}&box=${e.target.value}`; window.location.hash = base; };
-  main.querySelector('#r1').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 1)); refresh(); };
-  main.querySelector('#r3').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 3)); refresh(); };
-  main.querySelector('#half').onclick = () => { mutateWorld((w) => playMatchToHalf(w, match.mid)); refresh(); };
-  main.querySelector('#map').onclick = () => { mutateWorld((w) => playMatchMap(w, match.mid)); refresh(); };
-  main.querySelector('#series').onclick = () => { mutateWorld((w) => playMatchSeries(w, match.mid)); refresh(); };
+  main.querySelector('#box-select').onchange = (e) => { const base = `#/match?id=${match.mid}&box=${e.target.value}${isHistory ? `&season=${requestedSeason}` : ''}`; window.location.hash = base; };
+  if (!isHistory) {
+    main.querySelector('#r1').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 1)); refresh(); };
+    main.querySelector('#r3').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 3)); refresh(); };
+    main.querySelector('#half').onclick = () => { mutateWorld((w) => playMatchToHalf(w, match.mid)); refresh(); };
+    main.querySelector('#map').onclick = () => { mutateWorld((w) => playMatchMap(w, match.mid)); refresh(); };
+    main.querySelector('#series').onclick = () => { mutateWorld((w) => playMatchSeries(w, match.mid)); refresh(); };
+  }
 }
 
 export function renderStrategy(main, state) {

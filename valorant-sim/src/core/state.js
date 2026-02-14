@@ -91,6 +91,9 @@ export function normalizeWorld(world) {
   if (!world.facilityRequests) world.facilityRequests = [];
   if (!world.sponsors) world.sponsors = { active: [], offers: [], history: [] };
   if (!world.rules) world.rules = { allowDuplicateAgentsSameTeam: false };
+  if (!world.history) world.history = { seasons: {}, matches: {} };
+  if (!world.history.seasons) world.history.seasons = {};
+  if (!world.history.matches) world.history.matches = {};
   ensureWorldStrategy(world);
   world.messages?.forEach((m) => {
     if (!m.details) m.details = { bullets: [], stats: [], links: [], tags: [] };

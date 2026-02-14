@@ -1,5 +1,5 @@
 import { PRACTICE_FOCUS } from './constants.js';
-import { clamp } from './utils.js';
+import { clamp, uid } from './utils.js';
 import { computePlayerOverall } from './generator.js';
 import { initializeLiveSeries, playLiveRounds, simLiveMap, simLiveSeries, simLiveToHalf, simulateBo3Series } from './matchSimBo3.js';
 import { applyWeeklyTraining } from './training.js';
@@ -79,6 +79,123 @@ function applyPracticeAndFacilities(state, tid) {
   computeTeamMeta(state, tid);
 }
 
+function teamRosterSize(state, tid) {
+  return state.players.filter((p) => p.tid === tid).length;
+}
+
+function ensureTeamStarters(state, tid) {
+  const team = state.teams.find((t) => t.tid === tid);
+  const roster = state.players.filter((p) => p.tid === tid);
+  if (!team || !roster.length) return;
+  const validStarters = (team.starters || []).filter((pid) => roster.some((p) => p.pid === pid));
+  const needed = 5 - validStarters.length;
+  if (needed > 0) {
+    const candidates = roster.filter((p) => !validStarters.includes(p.pid)).sort((a, b) => b.ovr - a.ovr);
+    validStarters.push(...candidates.slice(0, needed).map((p) => p.pid));
+  }
+  team.starters = validStarters.slice(0, Math.min(5, roster.length));
+}
+
+function roleNeedBonus(teamPlayers, candidate) {
+  const roleCounts = {};
+  for (const p of teamPlayers) roleCounts[p.currentRole] = (roleCounts[p.currentRole] || 0) + 1;
+  const need = Math.max(0, 2 - (roleCounts[candidate.currentRole] || 0));
+  return need * 6;
+}
+
+function signFreeAgentToTeam(state, player, team) {
+  player.tid = team.tid;
+  player.currentContract = {
+    salaryPerYear: Math.max(25_000, Math.round((player.salary || 35_000) * (0.9 + Math.random() * 0.3))),
+    yearsRemaining: 1 + Math.floor(Math.random() * 3),
+    signedWithTid: team.tid,
+    buyoutClause: Math.round((player.salary || 35_000) * 3),
+    rolePromise: 'starter',
+    signingBonus: Math.round((player.salary || 35_000) * 0.15)
+  };
+  player.history.push(`Signed by ${team.name}`);
+  state.transactions = state.transactions || [];
+  state.transactions.push({ id: uid('txn'), ts: Date.now(), type: 'aiSign', tid: team.tid, pid: player.pid, note: `${team.name} signed ${player.name}` });
+}
+
+function ensureAiRosterMinimum(state) {
+  const freeAgents = () => state.players.filter((p) => p.tid === null);
+  for (const team of state.teams) {
+    if (team.tid === state.userTid) continue;
+    let missingCount = Math.max(0, 5 - teamRosterSize(state, team.tid));
+    while (missingCount > 0) {
+      const roster = state.players.filter((p) => p.tid === team.tid);
+      const candidates = freeAgents()
+        .map((p) => {
+          const affordabilityBonus = (team.cash >= (p.salary || 35_000)) ? 8 : -30;
+          const repBonus = Math.round((p.reputation || 50) * 0.12);
+          const fitScore = p.ovr + roleNeedBonus(roster, p) + affordabilityBonus + repBonus;
+          return { p, fitScore };
+        })
+        .sort((a, b) => b.fitScore - a.fitScore);
+      const pick = candidates.find((c) => team.cash >= ((c.p.salary || 35_000) * 0.6));
+      if (!pick) break;
+      signFreeAgentToTeam(state, pick.p, team);
+      missingCount -= 1;
+    }
+    ensureTeamStarters(state, team.tid);
+  }
+}
+
+function archiveSeason(state, seasonYear) {
+  if (!state.history) state.history = { seasons: {}, matches: {} };
+  if (!state.history.seasons) state.history.seasons = {};
+  if (!state.history.matches) state.history.matches = {};
+  if (state.history.seasons[seasonYear]) return;
+
+  const seasonSchedule = state.schedule.filter((m) => m.season === seasonYear).map((m) => {
+    const copy = JSON.parse(JSON.stringify(m));
+    state.history.matches[copy.mid] = copy;
+    return {
+      matchId: copy.mid,
+      week: copy.week,
+      homeTid: copy.homeTid,
+      awayTid: copy.awayTid,
+      status: copy.status,
+      result: copy.result,
+      seriesScore: copy.result?.seriesScore || null,
+      maps: copy.result?.maps || []
+    };
+  });
+
+  const standings = state.teams.map((t) => ({ tid: t.tid, wins: t.wins || 0, losses: t.losses || 0 })).sort((a, b) => b.wins - a.wins);
+  state.history.seasons[seasonYear] = { schedule: seasonSchedule, standings };
+}
+
+function buildSeasonSchedule(teams, season) {
+  const matches = [];
+  let week = 1;
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      matches.push({ mid: uid('m'), week, season, homeTid: teams[i].tid, awayTid: teams[j].tid, status: 'scheduled', played: false, result: null, live: null });
+      week = week >= 16 ? 1 : week + 1;
+    }
+  }
+  return matches.sort((a, b) => a.week - b.week);
+}
+
+function maybeRolloverSeason(state) {
+  const currentSeason = state.meta.year;
+  const currentSeasonMatches = state.schedule.filter((m) => m.season === currentSeason);
+  const seasonDone = currentSeasonMatches.length > 0 && currentSeasonMatches.every((m) => m.status === 'final');
+  if (!seasonDone) return;
+
+  archiveSeason(state, currentSeason);
+  state.meta.year += 1;
+  state.meta.week = 1;
+  for (const t of state.teams) {
+    t.wins = 0;
+    t.losses = 0;
+  }
+  const newSeasonMatches = buildSeasonSchedule(state.teams, state.meta.year);
+  state.schedule.push(...newSeasonMatches);
+}
+
 function contractCycle(state) {
   if (state.meta.week % 12 !== 0) return;
   for (const p of state.players) {
@@ -87,16 +204,10 @@ function contractCycle(state) {
     if (p.currentContract.yearsRemaining <= 0) {
       p.tid = null;
       p.history.push('Entered free agency');
-      addMessage(state, {
-        from: { type: 'system', name: 'League Office' },
-        subject: `${p.name} became a free agent`,
-        body: `${p.name}'s contract expired and they entered free agency.`,
-        category: 'contract',
-        related: { playerId: p.pid }
-      });
     }
   }
   aiResolveFreeAgency(state);
+  ensureAiRosterMinimum(state);
 }
 
 function applyMonthlyExpenses(state) {
@@ -113,9 +224,8 @@ function applyMonthlyExpenses(state) {
   }
 }
 
-
 function updatePlayerSeasonStats(state, match) {
-  const season = String(state.meta.year);
+  const season = String(match.season || state.meta.year);
   for (const map of match.result?.maps || []) {
     for (const teamStats of Object.values(map.playerStats || {})) {
       for (const row of teamStats) {
@@ -150,14 +260,8 @@ function finalizeResultEffects(state, match) {
 
   const userInvolved = match.homeTid === state.userTid || match.awayTid === state.userTid;
   if (userInvolved) {
-    const ecoHome = (match.result.maps || []).reduce((acc, m) => ({
-      ECO: acc.ECO + (m.ecoSummary?.[match.homeTid]?.ECO || 0),
-      FORCE: acc.FORCE + (m.ecoSummary?.[match.homeTid]?.FORCE || 0)
-    }), { ECO: 0, FORCE: 0 });
-    const ecoAway = (match.result.maps || []).reduce((acc, m) => ({
-      ECO: acc.ECO + (m.ecoSummary?.[match.awayTid]?.ECO || 0),
-      FORCE: acc.FORCE + (m.ecoSummary?.[match.awayTid]?.FORCE || 0)
-    }), { ECO: 0, FORCE: 0 });
+    const ecoHome = (match.result.maps || []).reduce((acc, m) => ({ ECO: acc.ECO + (m.ecoSummary?.[match.homeTid]?.ECO || 0), FORCE: acc.FORCE + (m.ecoSummary?.[match.homeTid]?.FORCE || 0) }), { ECO: 0, FORCE: 0 });
+    const ecoAway = (match.result.maps || []).reduce((acc, m) => ({ ECO: acc.ECO + (m.ecoSummary?.[match.awayTid]?.ECO || 0), FORCE: acc.FORCE + (m.ecoSummary?.[match.awayTid]?.FORCE || 0) }), { ECO: 0, FORCE: 0 });
     const clutchRounds = (match.result.maps || []).reduce((sum, m) => sum + (m.rounds || []).reduce((s, r) => s + ((r.clutches || []).length), 0), 0);
     const mapScores = (match.result.maps || []).map((m) => `${m.mapName} ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}`).join(' | ');
     addMessage(state, {
@@ -195,6 +299,7 @@ export function simulateMatch(state, match) {
 }
 
 export function openMatch(state, matchId) {
+  ensureAiRosterMinimum(state);
   const match = state.schedule.find((m) => m.mid === matchId);
   if (!match || match.status === 'final') return match;
   if (!hasFiveStarters(state, match.homeTid) || !hasFiveStarters(state, match.awayTid)) return match;
@@ -236,7 +341,8 @@ export function playMatchSeries(state, matchId) {
 }
 
 export function simulateNextMatchForUserTeam(state) {
-  const next = state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
+  ensureAiRosterMinimum(state);
+  const next = state.schedule.find((m) => m.season === state.meta.year && m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
   if (!next) return null;
   if (!hasFiveStarters(state, state.userTid)) {
     addMessage(state, {
@@ -255,12 +361,15 @@ export function simulateNextMatchForUserTeam(state) {
   maybeGenerateSponsorOffers(state);
   settleSponsorDeadlines(state);
   applyMonthlyExpenses(state);
+  maybeRolloverSeason(state);
   return next;
 }
 
 export function simulateWeek(state) {
-  const weekMatches = state.schedule.filter((m) => m.week === state.meta.week && m.status !== 'final');
+  ensureAiRosterMinimum(state);
+  const weekMatches = state.schedule.filter((m) => m.season === state.meta.year && m.week === state.meta.week && m.status !== 'final');
   for (const m of weekMatches) {
+    ensureAiRosterMinimum(state);
     if (!hasFiveStarters(state, m.homeTid) || !hasFiveStarters(state, m.awayTid)) continue;
     playMatchSeries(state, m.mid);
   }
@@ -269,6 +378,7 @@ export function simulateWeek(state) {
   maybeGenerateSponsorOffers(state);
   settleSponsorDeadlines(state);
   applyMonthlyExpenses(state);
+  maybeRolloverSeason(state);
   return weekMatches.length;
 }
 
