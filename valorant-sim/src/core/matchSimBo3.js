@@ -60,11 +60,13 @@ function buildAutoComp(team, starters, allowDupes) {
 }
 
 function resolveCompAssignments(state, team, starters, mapId) {
-  const templates = team.strategy?.comps || [];
   const allowDupes = Boolean(state.rules?.allowDuplicateAgentsSameTeam);
-  const mapTemplate = templates.find((c) => c.mapId === mapId) || templates.find((c) => c.mapId === 'global');
   const assignment = {};
   const used = new Set();
+  const strategyRoot = team.tid === state.userTid ? (state.strategy || {}) : (team.strategy || {});
+  const mapTemplate = strategyRoot.maps?.[mapId]?.comps?.find((c) => c.id === strategyRoot.maps?.[mapId]?.defaultCompId)
+    || strategyRoot.global?.comps?.find((c) => c.id === strategyRoot.global?.defaultCompId)
+    || null;
 
   if (mapTemplate) {
     for (const p of starters) {
@@ -74,7 +76,7 @@ function resolveCompAssignments(state, team, starters, mapId) {
         used.add(preset);
         continue;
       }
-      const slot = mapTemplate.agents?.find((agent) => agent && (allowDupes || !used.has(agent)));
+      const slot = (mapTemplate.slots || []).map((slot) => slot?.agent || '').find((agent) => agent && (allowDupes || !used.has(agent)));
       if (slot) {
         assignment[p.pid] = slot;
         used.add(slot);
@@ -222,19 +224,20 @@ function maybeTimeout(match, map, tid, roundIndex) {
   return timeout;
 }
 
-function assignRoundKills(winners, losers, firstKillTid, clutchInfo) {
+function assignRoundKills(winners, losers, firstKillTid, clutchInfo, roundIndex) {
   const winnerRows = [...winners];
   const loserRows = [...losers];
   const winnerKillsTarget = 5;
   const loserKillsTarget = Math.floor(Math.random() * 4);
+  const roundKills = {};
 
   for (let i = 0; i < winnerKillsTarget; i++) {
     const row = winnerRows[Math.floor(Math.random() * winnerRows.length)];
-    row.kills += 1;
+    row.kills += 1; roundKills[row.pid] = (roundKills[row.pid] || 0) + 1;
   }
   for (let i = 0; i < loserKillsTarget; i++) {
     const row = loserRows[Math.floor(Math.random() * loserRows.length)];
-    row.kills += 1;
+    row.kills += 1; roundKills[row.pid] = (roundKills[row.pid] || 0) + 1;
   }
 
   winners.forEach((r) => { if (Math.random() < 0.42) r.assists += 1; });
@@ -251,6 +254,8 @@ function assignRoundKills(winners, losers, firstKillTid, clutchInfo) {
     fdTeam[0].firstDeaths += 1;
   }
   if (clutchInfo?.row) clutchInfo.row.clutches += 1;
+  const multikills = Object.entries(roundKills).filter(([, c]) => c >= 2).map(([pid, count]) => ({ pid, count, roundIndex, importance: count >= 4 ? 100 + count : count === 3 ? 80 : 60 }));
+  return { roundKills, multikills };
 }
 
 function updateEconomy(map, winnerTid, loserTid, loserPlant, ecoInfo) {
@@ -450,10 +455,9 @@ export function playLiveRound(state, match) {
     const clutchRow = winnerRows[Math.floor(Math.random() * winnerRows.length)];
     const vs = [1, 2, 3][Math.floor(Math.random() * 3)];
     clutches = [{ pid: clutchRow.pid, tid: winnerTid, vs }];
-    map.keyMoments.push({ type: 'clutch', roundIndex: roundIndex + 1, pid: clutchRow.pid, tid: winnerTid, vs });
   }
 
-  assignRoundKills(winnerRows, loserRows, firstKill?.tid ?? winnerTid, clutches[0] ? { row: winnerRows.find((x) => x.pid === clutches[0].pid) } : null);
+  const roundImpact = assignRoundKills(winnerRows, loserRows, firstKill?.tid ?? winnerTid, clutches[0] ? { row: winnerRows.find((x) => x.pid === clutches[0].pid) } : null, live.roundIndex + 1);
 
   map.score[winnerTid] += 1;
   updateEconomy(map, winnerTid, loserTid, plant && sideWon === 'atk', { [match.homeTid]: homeEco, [match.awayTid]: awayEco });
@@ -468,14 +472,21 @@ export function playLiveRound(state, match) {
     defuse,
     firstKill,
     clutches,
+    killsByPlayer: roundImpact.roundKills,
     eco: { [match.homeTid]: homeEco, [match.awayTid]: awayEco },
     score: { ...map.score }
   };
   map.rounds.push(roundLog);
+  for (const mk of roundImpact.multikills) {
+    const count = mk.count;
+    map.keyMoments.push({ type: 'multikill', roundIndex: mk.roundIndex, pid: mk.pid, tid: state.players.find((p) => p.pid === mk.pid)?.tid, count, importance: mk.importance });
+  }
   const winnerAbbrev = winnerTid === match.homeTid ? homeTeam.abbrev : awayTeam.abbrev;
   live.log.push(`Map ${live.mapIndex + 1} R${live.roundIndex}: ${winnerAbbrev} ${winType.toUpperCase()} (${BUY_LABELS.indexOf(homeEco.buyType) >= 0 ? homeEco.buyType : 'BUY'}/${awayEco.buyType})`);
 
-  if (firstKill) map.keyMoments.push({ type: 'firstKill', roundIndex: live.roundIndex, ...firstKill });
+  if (firstKill) map.keyMoments.push({ type: 'firstKill', roundIndex: live.roundIndex, importance: 30, ...firstKill });
+  if (clutches.length) map.keyMoments.push({ type: 'clutch', roundIndex: live.roundIndex, pid: clutches[0].pid, tid: clutches[0].tid, vs: clutches[0].vs, importance: 50 + clutches[0].vs * 5 });
+  map.keyMoments.sort((a, b) => (b.importance || 0) - (a.importance || 0));
 
   concludeIfNeeded(match);
 }

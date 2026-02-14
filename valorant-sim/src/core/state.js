@@ -13,6 +13,7 @@ function ensurePlayerShape(player) {
   if (!player.playtimeDesire) player.playtimeDesire = 50;
   if (!player.preferredRole) player.preferredRole = player.currentRole;
   if (!player.trainingPlan) player.trainingPlan = { primaryFocus: player.currentRole, secondaryFocus: 'None', intensity: 'normal' };
+  if (!player.seasonStats) player.seasonStats = {};
   if (!player.currentContract) player.currentContract = { salaryPerYear: player.salary, yearsRemaining: 2, signedWithTid: player.tid, buyoutClause: player.salary * 3, rolePromise: 'starter', signingBonus: Math.round(player.salary * 0.15) };
   if (!player.agentPool) {
     const affinities = {};
@@ -30,6 +31,16 @@ function ensureCoachShape(coach) {
   if (!coach.styleSliders) coach.styleSliders = { aggressionBias: 0, structureBias: 0, innovationBias: 0, rookieTrust: 0, egoManagementBias: 0 };
   if (!coach.staffRole) coach.staffRole = 'Head Coach';
   if (!coach.salary) coach.salary = 35000;
+}
+
+
+function ensureWorldStrategy(world) {
+  if (!world.strategy) world.strategy = { maps: {}, global: { defaultCompId: '', comps: [] } };
+  if (!world.strategy.maps) world.strategy.maps = {};
+  for (const map of MAP_POOL) {
+    if (!world.strategy.maps[map.id]) world.strategy.maps[map.id] = { defaultCompId: '', comps: [] };
+  }
+  if (!world.strategy.global) world.strategy.global = { defaultCompId: '', comps: [] };
 }
 
 function ensureTeamShape(team, worldPlayers) {
@@ -80,6 +91,7 @@ export function normalizeWorld(world) {
   if (!world.facilityRequests) world.facilityRequests = [];
   if (!world.sponsors) world.sponsors = { active: [], offers: [], history: [] };
   if (!world.rules) world.rules = { allowDuplicateAgentsSameTeam: false };
+  ensureWorldStrategy(world);
   world.messages?.forEach((m) => {
     if (!m.details) m.details = { bullets: [], stats: [], links: [], tags: [] };
     m.details.bullets = Array.isArray(m.details.bullets) ? m.details.bullets : [];

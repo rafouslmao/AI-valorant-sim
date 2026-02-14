@@ -113,6 +113,27 @@ function applyMonthlyExpenses(state) {
   }
 }
 
+
+function updatePlayerSeasonStats(state, match) {
+  const season = String(state.meta.year);
+  for (const map of match.result?.maps || []) {
+    for (const teamStats of Object.values(map.playerStats || {})) {
+      for (const row of teamStats) {
+        const p = state.players.find((x) => x.pid === row.pid);
+        if (!p) continue;
+        if (!p.seasonStats) p.seasonStats = {};
+        if (!p.seasonStats[season]) p.seasonStats[season] = { kills: 0, deaths: 0, assists: 0, mapsPlayed: 0, mostKillsInMap: 0 };
+        const ss = p.seasonStats[season];
+        ss.kills += row.kills || 0;
+        ss.deaths += row.deaths || 0;
+        ss.assists += row.assists || 0;
+        ss.mapsPlayed += 1;
+        ss.mostKillsInMap = Math.max(ss.mostKillsInMap, row.kills || 0);
+      }
+    }
+  }
+}
+
 function finalizeResultEffects(state, match) {
   const homeTeam = state.teams.find((t) => t.tid === match.homeTid);
   const awayTeam = state.teams.find((t) => t.tid === match.awayTid);
@@ -125,6 +146,7 @@ function finalizeResultEffects(state, match) {
   applyPracticeAndFacilities(state, match.awayTid);
 
   updateSponsorProgress(state);
+  updatePlayerSeasonStats(state, match);
 
   const userInvolved = match.homeTid === state.userTid || match.awayTid === state.userTid;
   if (userInvolved) {

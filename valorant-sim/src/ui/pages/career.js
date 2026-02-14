@@ -105,21 +105,46 @@ export function renderMatchView(main, state, id) {
   const live = match.live;
   const map = live?.maps?.[live.mapIndex];
   const scoreLine = map ? `${map.score[match.homeTid]} - ${map.score[match.awayTid]}` : (match.result?.summary || '-');
+  const playerName = (pid) => state.players.find((p) => p.pid === pid)?.name || pid;
 
   const timeline = (map?.rounds || []).slice(-12).map((r) => {
-    const fk = r.firstKill ? `FK:${r.firstKill.pid}` : '';
+    const fk = r.firstKill ? `FK:${playerName(r.firstKill.pid)}` : '';
     const clutch = r.clutches?.length ? `Clutch x${r.clutches.length}` : '';
     return `<div>R${r.roundIndex} ${r.winType.toUpperCase()} ${r.plant ? '🌱' : ''}${r.defuse ? '🧰' : ''} | ${r.eco[match.homeTid].buyType}/${r.eco[match.awayTid].buyType} | ${fk} ${clutch}</div>`;
   }).join('') || '<p>No rounds yet.</p>';
 
-  const keyMoments = (map?.keyMoments || []).slice(-10).map((m) => {
-    if (m.type === 'timeout') return `<li>R${m.roundIndex}: Timeout by ${m.byTid} (${m.reason})</li>`;
-    if (m.type === 'firstKill') return `<li>R${m.roundIndex}: First kill by ${m.pid}</li>`;
-    if (m.type === 'clutch') return `<li>R${m.roundIndex}: ${m.pid} won 1v${m.vs}</li>`;
+  const keyMoments = (map?.keyMoments || []).slice(0, 12).map((m) => {
+    if (m.type === 'timeout') return `<li>R${m.roundIndex}: Timeout by ${state.teams.find((t) => t.tid === m.byTid)?.abbrev || m.byTid} (${m.reason})</li>`;
+    if (m.type === 'firstKill') return `<li>R${m.roundIndex}: First kill by ${playerName(m.pid)}</li>`;
+    if (m.type === 'clutch') return `<li>R${m.roundIndex}: ${playerName(m.pid)} won 1v${m.vs}</li>`;
+    if (m.type === 'multikill') return `<li>R${m.roundIndex}: ${playerName(m.pid)} posted ${m.count}K</li>`;
     return `<li>${m.type}</li>`;
   }).join('') || '<li>No key moments yet.</li>';
 
   const econRows = (map?.rounds || []).slice(-8).map((r) => `<tr><td>R${r.roundIndex}</td><td>${r.eco[match.homeTid].avgCreditsBeforeBuy} (${r.eco[match.homeTid].buyType})</td><td>${r.eco[match.awayTid].avgCreditsBeforeBuy} (${r.eco[match.awayTid].buyType})</td></tr>`).join('');
+  const mapOptions = ['series'].concat((match.result?.maps || []).map((_, i) => String(i)));
+  const selected = new URLSearchParams(window.location.hash.split('?')[1] || '').get('box') || 'series';
+  const selectedMap = selected === 'series' ? null : (match.result?.maps || [])[Number(selected)];
+
+  const aggregate = (maps) => {
+    const rows = {};
+    for (const m of maps) {
+      for (const arr of Object.values(m.playerStats || {})) {
+        for (const p of arr) {
+          if (!rows[p.pid]) rows[p.pid] = { name: p.name, agent: p.agent, kills: 0, deaths: 0, assists: 0, fk: 0, fd: 0, multi: {2:0,3:0,4:0,5:0}, rating: 0, maps: 0 };
+          rows[p.pid].kills += p.kills; rows[p.pid].deaths += p.deaths; rows[p.pid].assists += p.assists;
+          rows[p.pid].fk += p.firstKills || 0; rows[p.pid].fd += p.firstDeaths || 0;
+          rows[p.pid].rating += p.rating || 0; rows[p.pid].maps += 1;
+          for (const r of m.rounds || []) {
+            const cnt = r.killsByPlayer?.[p.pid] || 0;
+            if (cnt >= 2) rows[p.pid].multi[Math.min(5, cnt)] += 1;
+          }
+        }
+      }
+    }
+    return Object.values(rows).map((r) => ({ ...r, rating: (r.rating / Math.max(1, r.maps)).toFixed(2) })).sort((a,b)=>b.kills-a.kills);
+  };
+  const boxRows = aggregate(selectedMap ? [selectedMap] : (match.result?.maps || []));
 
   main.innerHTML = `<h1>Match View</h1>${lineupWarning}
   <p>Status: ${match.status}</p>
@@ -131,11 +156,14 @@ export function renderMatchView(main, state, id) {
   <h3>Round Timeline</h3><div class="card">${timeline}</div>
   <h3>Key Moments</h3><ul>${keyMoments}</ul>
   <h3>Economy Panel</h3><table><tr><th>Round</th><th>Home</th><th>Away</th></tr>${econRows || '<tr><td colspan="3">No data</td></tr>'}</table>
+  <h3>Box Score</h3><label>View <select id="box-select">${mapOptions.map((o, i) => `<option value="${o}" ${selected===o?'selected':''}>${o==='series'?'Series':`Map ${i}`}</option>`).join('')}</select></label>
+  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/ACE</th><th>Rating</th></tr>${boxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
   <pre>${(live?.log || []).slice(-16).join('\n')}</pre>`;
 
   const canPlay = start.length >= 5;
   ['#r1', '#r3', '#half', '#map', '#series'].forEach((idBtn) => { const el = main.querySelector(idBtn); if (el && !canPlay) el.disabled = true; });
   const refresh = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
+  main.querySelector('#box-select').onchange = (e) => { const base = `#/match?id=${match.mid}&box=${e.target.value}`; window.location.hash = base; };
   main.querySelector('#r1').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 1)); refresh(); };
   main.querySelector('#r3').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 3)); refresh(); };
   main.querySelector('#half').onclick = () => { mutateWorld((w) => playMatchToHalf(w, match.mid)); refresh(); };
@@ -145,40 +173,45 @@ export function renderMatchView(main, state, id) {
 
 export function renderStrategy(main, state) {
   const team = getUserTeam(state);
-  const readOnly = !isCoachMode(state) && team.strategy.delegateToCoach;
+  if (!state.strategy) state.strategy = { maps: {}, global: { defaultCompId: '', comps: [] } };
+  const mapCards = MAP_POOL.map((m) => `<button data-map-card="${m.id}">${m.name}</button>`).join('');
+  const selectedMap = new URLSearchParams(window.location.hash.split('?')[1] || '').get('map') || MAP_POOL[0].id;
+  if (!state.strategy.maps[selectedMap]) state.strategy.maps[selectedMap] = { defaultCompId: '', comps: [] };
+  const mapState = state.strategy.maps[selectedMap];
+  if (!mapState.comps.length) mapState.comps.push({ id: uid('comp'), name: `${MAP_POOL.find((m)=>m.id===selectedMap)?.name} Default`, slots: [{agent:''},{agent:''},{agent:''},{agent:''},{agent:''}], assignments: {} });
+  if (!mapState.defaultCompId) mapState.defaultCompId = mapState.comps[0].id;
+  const comp = mapState.comps.find((c) => c.id === mapState.defaultCompId) || mapState.comps[0];
   const starterList = starters(state, team.tid);
-  if (!state.rules) state.rules = { allowDuplicateAgentsSameTeam: false };
-
-  const globalComp = team.strategy.comps.find((c) => c.mapId === 'global') || { id: 'global', mapId: 'global', agents: ['', '', '', '', ''], assignments: {} };
-  if (!team.strategy.comps.find((c) => c.mapId === 'global')) team.strategy.comps.push(globalComp);
 
   main.innerHTML = `<h1>Strategy</h1>
-  <label>Delegate to Coach <select id="delegate"><option value="true" ${team.strategy.delegateToCoach ? 'selected' : ''}>true</option><option value="false" ${!team.strategy.delegateToCoach ? 'selected' : ''}>false</option></select></label>
+  <p>Mirror comps across teams are always allowed.</p>
   <label>Allow Duplicate Agents (same team) <select id="dupes"><option value="false" ${!state.rules.allowDuplicateAgentsSameTeam ? 'selected' : ''}>false</option><option value="true" ${state.rules.allowDuplicateAgentsSameTeam ? 'selected' : ''}>true</option></select></label>
-  <label>Economy Risk <input id="econRisk" type="range" min="0" max="1" step="0.05" value="${team.strategy.economyRisk}" ${readOnly ? 'disabled' : ''}/></label>
-  <table><tr><th>Map</th><th>Preference</th></tr>${MAP_POOL.map((m) => `<tr><td>${m.name}</td><td><select data-map="${m.id}" ${readOnly ? 'disabled' : ''}>${MAP_PREFS.map((p) => `<option ${team.strategy.mapPreferences[m.id] === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td></tr>`).join('')}</table>
-
-  <h3>Default Comp Template (Global)</h3>
-  <div>${[0,1,2,3,4].map((i) => `<label>Slot ${i+1}<select data-comp-slot="${i}">${[''].concat(ALL_AGENTS).map((a) => `<option value="${a}" ${globalComp.agents[i] === a ? 'selected' : ''}>${a || 'Auto'}</option>`).join('')}</select></label>`).join('')}</div>
-
-  <h3>Starter Assignment</h3>
+  <h3>Map Comp Planner</h3><div class="top-actions">${mapCards}</div>
+  <h4>${MAP_POOL.find((m) => m.id === selectedMap)?.name}</h4>
+  <label>Comp Name <input id="comp-name" value="${comp.name}" /></label>
+  <table><tr><th>Slot</th><th>Agent</th></tr>${comp.slots.map((slot, i) => `<tr><td>${i + 1}</td><td><select data-comp-slot="${i}">${[''].concat(ALL_AGENTS).map((a)=>`<option value="${a}" ${slot.agent===a?'selected':''}>${a || 'Auto'}</option>`).join('')}</select></td></tr>`).join('')}</table>
+  <h3>Starter Assignment (${MAP_POOL.find((m)=>m.id===selectedMap)?.name})</h3>
   <table><tr><th>Starter</th><th>Role</th><th>Agent</th><th>Top affinity</th></tr>${starterList.map((p) => {
     const top = Object.entries(p.agentPool.affinities || {}).sort((a,b)=>b[1]-a[1])[0];
-    return `<tr><td>${p.name}</td><td>${p.currentRole}</td><td><select data-assign="${p.pid}">${[''].concat(ALL_AGENTS).map((a) => `<option value="${a}" ${(globalComp.assignments?.[p.pid] || '') === a ? 'selected' : ''}>${a || 'Auto'}</option>`).join('')}</select></td><td>${top ? `${top[0]} (${top[1]})` : 'N/A'}</td></tr>`;
-  }).join('')}</table><p>Mirror comps across teams are always allowed.</p>`;
+    return `<tr><td>${p.name}</td><td>${p.currentRole}</td><td><select data-assign="${p.pid}">${[''].concat(ALL_AGENTS).map((a) => `<option value="${a}" ${(comp.assignments?.[p.pid] || '') === a ? 'selected' : ''}>${a || 'Auto'}</option>`).join('')}</select></td><td>${top ? `${top[0]} (${top[1]})` : 'N/A'}</td></tr>`;
+  }).join('')}</table>`;
 
-  main.querySelector('#delegate').onchange = (e) => mutateWorld((w) => { getUserTeam(w).strategy.delegateToCoach = e.target.value === 'true'; });
-  main.querySelector('#dupes').onchange = (e) => mutateWorld((w) => { if (!w.rules) w.rules = { allowDuplicateAgentsSameTeam: false }; w.rules.allowDuplicateAgentsSameTeam = e.target.value === 'true'; });
-  const riskEl = main.querySelector('#econRisk');
-  if (riskEl) riskEl.onchange = () => mutateWorld((w) => { getUserTeam(w).strategy.economyRisk = Number(riskEl.value); });
-  main.querySelectorAll('[data-map]').forEach((sel) => sel.onchange = () => mutateWorld((w) => { getUserTeam(w).strategy.mapPreferences[sel.dataset.map] = sel.value; }));
+  main.querySelector('#dupes').onchange = (e) => mutateWorld((w) => { w.rules.allowDuplicateAgentsSameTeam = e.target.value === 'true'; });
+  main.querySelectorAll('[data-map-card]').forEach((btn) => btn.onclick = () => { window.location.hash = `#/strategy?map=${btn.dataset.mapCard}`; });
+  main.querySelector('#comp-name').onchange = (e) => mutateWorld((w) => {
+    const mapNode = w.strategy.maps[selectedMap];
+    const c = mapNode.comps.find((x) => x.id === mapNode.defaultCompId);
+    if (c) c.name = e.target.value;
+  });
   main.querySelectorAll('[data-comp-slot]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
-    const t = getUserTeam(w); let comp = t.strategy.comps.find((c) => c.mapId === 'global'); if (!comp) { comp = { id: uid('comp'), mapId: 'global', agents: ['', '', '', '', ''], assignments: {} }; t.strategy.comps.push(comp); }
-    comp.agents[Number(sel.dataset.compSlot)] = sel.value;
+    const mapNode = w.strategy.maps[selectedMap];
+    const c = mapNode.comps.find((x) => x.id === mapNode.defaultCompId);
+    if (c) c.slots[Number(sel.dataset.compSlot)] = { agent: sel.value };
   }));
   main.querySelectorAll('[data-assign]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
-    const t = getUserTeam(w); let comp = t.strategy.comps.find((c) => c.mapId === 'global'); if (!comp) { comp = { id: uid('comp'), mapId: 'global', agents: ['', '', '', '', ''], assignments: {} }; t.strategy.comps.push(comp); }
-    comp.assignments[sel.dataset.assign] = sel.value;
+    const mapNode = w.strategy.maps[selectedMap];
+    const c = mapNode.comps.find((x) => x.id === mapNode.defaultCompId);
+    if (c) c.assignments[sel.dataset.assign] = sel.value;
   }));
 }
 
@@ -343,7 +376,14 @@ export function renderPlayerDetail(main, state, id) {
   if (!p) return (main.innerHTML = '<p>Player not found.</p>');
   const attrs = Object.entries(p.attrs).map(([k, v]) => `${k}: ${Math.round(v)}`).join(', ');
   const affinityTop = Object.entries(p.agentPool.affinities || {}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([a,v])=>`${a}(${v})`).join(', ');
-  main.innerHTML = `<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>OVR: ${p.ovr}</p><p>Roles: ${p.roles.join(', ')} | Current: ${p.currentRole} | Secondary Tag: ${p.secondaryRoleTag}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><p>${attrs}</p>`;
+  const seasonRows = Object.entries(p.seasonStats || {}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([season, st]) => {
+    const kd = st.deaths ? (st.kills / st.deaths).toFixed(2) : st.kills.toFixed(2);
+    const kpm = (st.kills / Math.max(1, st.mapsPlayed)).toFixed(2);
+    const dpm = (st.deaths / Math.max(1, st.mapsPlayed)).toFixed(2);
+    return `<tr><td>${season}</td><td>${st.kills}</td><td>${st.deaths}</td><td>${st.assists}</td><td>${kd}</td><td>${kpm}</td><td>${dpm}</td><td>${st.mapsPlayed}</td><td>${st.mostKillsInMap || 0}</td></tr>`;
+  }).join('');
+  main.innerHTML = `<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>OVR: ${p.ovr}</p><p>Roles: ${p.roles.join(', ')} | Current: ${p.currentRole} | Secondary Tag: ${p.secondaryRoleTag}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><p>${attrs}</p>
+  <h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
 }
 
 export function renderCoachDetail(main, state, id) {
