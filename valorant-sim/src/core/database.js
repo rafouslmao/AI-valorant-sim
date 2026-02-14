@@ -440,7 +440,116 @@ Free Agents | SimonD4rk | duelist/controller | 24 | Belarus | https://www.vlr.gg
 Free Agents | STYRON | initiator/duelist | 24 | Singapore | https://owcdn.net/img/63e0aacfdf6f9.png | false | true
 Free Agents | Hals | controller/sentinel | 19 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true`;
 
-export const IMPORTED_SEED_DB = buildSeedDatabaseFromText(MASTER_PLAYERS_TEXT);
+
+
+const MASTER_PLAYERS_TEXT_EXTRA = `Team | Name | Role(s) | Age | Nationality | ImageURL | Starter | FreeAgent
+Free Agents | Paincakes | controller/initiator/sentinel/flex | 23 | United_States | https://owcdn.net/img/630564bd5cb85.png | false | true
+Free Agents | Reverie | initiator | 23 | Singapore | https://owcdn.net/img/661780ec2e8ff.png | false | true
+Free Agents | JaebiN | duelist | 21 | South_Korea | https://owcdn.net/img/65ffe0dcc6ce0.png | false | true
+Free Agents | XyuS | duelist/initiator/flex | 20 | Taiwan | https://owcdn.net/img/66ab0deb6baae.png | false | true
+Free Agents | aduka | duelist/initiator/sentinel/flex | 22 | Malaysia | https://owcdn.net/img/65c93e1b21125.png | false | true
+Free Agents | JohnOlsen | duelist/sentinel | 27 | Thailand | https://owcdn.net/img/65ef123f66a9f.png | false | true
+Free Agents | DVDOV | sentinel/initiator/duelist | 26 | United_Arab_Emirates | https://www.vlr.gg/img/base/ph/sil.png | false | true
+ZETA DIVISION | Xdll | initiator/flex | 20 | Japan | https://owcdn.net/img/678a91e7bd2a2.png | true | false
+Free Agents | WanZeru | duelist | 18 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lux9 | duelist/initiator | 21 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nexi | sentinel/controller | 24 | Philippines | https://owcdn.net/img/65cca6eb39eb2.png | false | true
+Free Agents | prince | sentinel/controller/duelist | 27 | Brazil | https://owcdn.net/img/63b463a44b109.png | false | true
+Free Agents | Magnus | sentinel/duelist | 23 | Germany | https://owcdn.net/img/6657f64a48443.png | false | true
+Free Agents | Reformed | duelist/sentinel | 22 | Canada | https://owcdn.net/img/641693ee7965c.png | false | true
+Free Agents | niffy | duelist/initiator/sentinel/flex | 24 | Thailand | https://owcdn.net/img/6410217bbd7e5.png | false | true
+Free Agents | McKinley | initiator/sentinel | 23 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Potter | duelist/sentinel | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Bard0lf | controller | 23 | Turkey | https://owcdn.net/img/66526d1707b0e.png | false | true
+Free Agents | Mot1on | sentinel/initiator | 23 | Slovenia | https://owcdn.net/img/650b5459a2267.png | false | true
+Free Agents | ting2k5 | sentinel/duelist/flex | 21 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+FunPlus Phoenix | sScary | sentinel/controller | 26 | Thailand | https://owcdn.net/img/651eec4e16bdd.png | true | false
+Free Agents | adrnking | initiator/sentinel/controller | 27 | Indonesia | https://owcdn.net/img/6669ced098261.png | false | true
+Free Agents | SkRossi | initiator/sentinel | 28 | India | https://owcdn.net/img/65bdc76814d4f.png | false | true
+Free Agents | RobbieBk | initiator/sentinel | 24 | Netherlands | https://owcdn.net/img/6889de8ba5e02.png | false | true
+Free Agents | szoren | duelist/initiator/flex | 27 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SemberN | controller/sentinel/initiator | 21 | Norway | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vAgue | duelist | 21 | United_Arab_Emirates | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | CLZ | flex/initiator | 23 | Japan | https://owcdn.net/img/678a91d34f18a.png | false | true
+Free Agents | cavern | initiator | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Felix | initiator/controller | 22 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | luckeRRR | initiator/duelist | 29 | Germany | https://owcdn.net/img/6664b736368ca.png | false | true
+Free Agents | d3ffo | duelist | 24 | Russia | https://owcdn.net/img/60a0cf20e6b13.png | false | true
+Free Agents | Nythan | initiator/sentinel | 21 | Indonesia | https://owcdn.net/img/66343fd327590.png | false | true
+Free Agents | smiley | controller/initiator | 21 | Canada | https://owcdn.net/img/650227fc774b1.png | false | true
+Free Agents | Momiji | controller/initiator | 22 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | swagzor | duelist | 17 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | furbsa | duelist/flex | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ValdyN | duelist/initiator/flex | 21 | Indonesia | https://owcdn.net/img/66711853d46ff.png | false | true
+Free Agents | andrew | duelist/controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jvhz | duelist/sentinel | 24 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | riyabtw | initiator/duelist/flex | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | wedid | controller | 26 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SecondLove | sentinel/controller/initiator | 21 | Philippines | https://owcdn.net/img/65cd5ba51c92d.png | false | true
+Free Agents | kugio | initiator/duelist/flex | 24 | Qatar | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | N0NGLAZ | sentinel/initiator | 21 | Thailand | https://owcdn.net/img/6565dc3c7bb57.png | false | true
+Free Agents | snw | duelist/flex | 23 | Brazil | https://owcdn.net/img/67abe1974f0eb.png | false | true
+DetonatioN FocusMe | yatsuka | sentinel/duelist | 18 | Japan | https://owcdn.net/img/682d95bed801b.png | true | false
+Free Agents | Goaster | duelist/initiator/flex | 24 | France | https://owcdn.net/img/643931fcc0ef6.png | false | true
+Free Agents | ZYND | duelist/controller | 21 | Philippines | https://owcdn.net/img/655c244314137.png | false | true
+Free Agents | memset | controller/sentinel | 21 | France | https://owcdn.net/img/6693943fd0e6c.png | false | true
+Free Agents | Kevzii | controller/initiator | 21 | Philippines | https://owcdn.net/img/655c300708259.png | false | true
+Free Agents | lg1c | duelist | 23 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Freyy | controller | 21 | Poland | https://owcdn.net/img/667c4816ccd98.png | false | true
+Free Agents | zeek | initiator/flex | 24 | Poland | https://owcdn.net/img/637dfcc50c1d7.png | false | true
+Free Agents | yoman | initiator/flex | 29 | South_Korea | https://i.imgur.com/gHmhSja.png | false | true
+Free Agents | Myth | controller/sentinel | 25 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ip0TT | duelist/controller/flex | 26 | Turkey | https://owcdn.net/img/65f086cd062ca.png | false | true
+Free Agents | mika | duelist/sentinel/controller/flex | 22 | Indonesia | https://owcdn.net/img/663e3b53d06ee.png | false | true
+Free Agents | MaiShiu | initiator/controller | 21 | New_Zealand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Feeqn | sentinel/controller | 25 | Finland | https://owcdn.net/img/61e74e914e0df.png | false | true
+Free Agents | Snowi | initiator/sentinel | 19 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kalkkuna | duelist/sentinel | 21 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | stellar | initiator/controller/sentinel/flex/duelist | 29 | United_States | https://owcdn.net/img/6416922568477.png | false | true
+Free Agents | sym | duelist/initiator/flex | 20 | United_States | https://i.ibb.co/XzVj5KC/symtsm.png | false | true
+Free Agents | frostmind | sentinel/controller/initiator/flex | 21 | Indonesia | https://owcdn.net/img/663e3b426ef76.png | false | true
+Free Agents | Andersin | controller | 28 | United_States | https://owcdn.net/img/63058448f28f3.png | false | true
+Free Agents | pudj | controller/sentinel/initiator | 21 | Singapur | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SHINSEI | duelist/sentinel | 21 | Singapore | https://owcdn.net/img/64106311d997b.png | false | true
+Free Agents | hellff | initiator | 27 | India | https://owcdn.net/img/64d92c9f91ecf.png | false | true
+Free Agents | Virtyy | duelist/flex | 23 | Dominican_Republic | https://owcdn.net/img/687b3fba0ad89.png | false | true
+Free Agents | SID | duelist/controller/initiator | 20 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Pkm | controller/sentinel/duelist/flex | 19 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | prozin | initiator/controller/sentinel/flex | 24 | Brazil | https://owcdn.net/img/60a1c0cbc1751.png | false | true
+Free Agents | thief | sentinel/controller | 27 | United_States | https://i.ibb.co/GTZ7FQh/thiefmxs.png | false | true
+Free Agents | shion | initiator/sentinel | 30 | Brazil | https://owcdn.net/img/64328a904b653.png | false | true
+Free Agents | Kibojn | initiator/sentinel | 21 | India | https://owcdn.net/img/65c7b83871246.png | false | true
+Free Agents | NiSMO | flex/duelist/initiator | 31 | Canada | https://i.imgur.com/5NrPYmW.png | false | true
+LOUD | erde | flex/controller/sentinel/duelist | 18 | Chile | https://www.vlr.gg/img/base/ph/sil.png | true | false
+Free Agents | bones | controller | 18 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | neptune | initiator/controller | 23 | United_States | https://owcdn.net/img/6296947b3168a.png | false | true
+Free Agents | Rainy | controller/sentinel | 30 | Taiwan | https://owcdn.net/img/66ab0de44e06f.png | false | true
+Free Agents | khz | sentinel/duelist/initiator/flex | 21 | Chile | https://owcdn.net/img/65d8e3271d125.png | false | true
+Free Agents | Madelyn | controller/initiator | 21 | Indonesia | https://owcdn.net/img/645ce9e29fd43.png | false | true
+Free Agents | Trash | controller/sentinel/flex | 5914031408731904 | Brazil | https://owcdn.net/img/6678de139711d.png | false | true
+Free Agents | RizoN | initiator/sentinel | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | H1ber | initiator/controller/duelist/flex | 27 | Finland | https://owcdn.net/img/63b7a4264bfc0.png | false | true
+Free Agents | RedLight | initiator/controller | 22 | South_Korea | https://owcdn.net/img/65ffe1038887d.png | false | true
+Free Agents | silenttt | initiator/controller/sentinel/flex | 24 | Portugal | https://owcdn.net/img/6282a5e050f6e.png | false | true
+Free Agents | chanformer | controller/sentinel | 25 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dev0 | duelist/controller | 23 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | muto | initiator/sentinel/controller | 22 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lurzy0y0 | initiator/controller | 29 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nasty | duelist/sentinel | 21 | Taiwan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ShawateRR | controller/sentinel | 30 | Jordan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | par scofield | duelist | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | globeX | controller/duelist | 19 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Patrui | controller/sentinel/initiator | 21 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | d0rf | initiator/sentinel | 25 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Divine | controller/sentinel/initiator/flex | 25 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | alvar | initiator/sentinel/duelist/flex | 27 | Jordan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Akira | initiator/controller/sentinel/flex | 23 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Instxnct | duelist/initiator/flex | 21 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | JustnatioNN | controller/sentinel/initiator | 27 | Kuwait | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BRIAN | sentinel/duelist | 20 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true`;
+
+export const IMPORTED_SEED_DB = buildSeedDatabaseFromText(`${MASTER_PLAYERS_TEXT}
+${MASTER_PLAYERS_TEXT_EXTRA}`);
 
 export const REAL_TEAM_DATABASE = IMPORTED_SEED_DB.teams;
 export const REAL_IMPORTED_PLAYERS = IMPORTED_SEED_DB.players;

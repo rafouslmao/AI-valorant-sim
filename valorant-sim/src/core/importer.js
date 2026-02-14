@@ -11,7 +11,8 @@ function normalizeRoleToken(token) {
 }
 
 export function parseMasterPlayersText(text) {
-  const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const normalized = String(text || '').replaceAll('\\n', '\n');
+  const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return [];
 
   const rows = [];
@@ -51,10 +52,12 @@ export function buildSeedDatabaseFromText(text) {
   const parsed = parseMasterPlayersText(text);
   const teamsByName = new Map();
   const players = [];
+  const seen = new Set();
 
   for (const row of parsed) {
     const key = row.freeAgent ? `FA::${row.name.toLowerCase()}` : `${row.teamName.toLowerCase()}::${row.name.toLowerCase()}`;
-    if (players.some((p) => p._key === key)) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     let teamId = null;
     if (!row.freeAgent) {
