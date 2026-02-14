@@ -1,6 +1,5 @@
-import { ROLES } from './constants.js';
-
-const ROLE_SET = new Set(ROLES.map((r) => r.toLowerCase()));
+const CANONICAL_ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex'];
+const ROLE_SET = new Set(CANONICAL_ROLES.map((r) => r.toLowerCase()));
 
 function normalizeRoleToken(token) {
   const t = token.trim().toLowerCase();
@@ -30,7 +29,7 @@ export function parseMasterPlayersText(text) {
       if (ROLE_SET.has(t)) return t[0].toUpperCase() + t.slice(1);
       return t;
     })));
-    const tags = roles.filter((r) => !ROLES.includes(r)).map((r) => r.toUpperCase());
+    const tags = roles.filter((r) => !CANONICAL_ROLES.includes(r)).map((r) => r.toUpperCase());
 
     rows.push({
       teamName,
