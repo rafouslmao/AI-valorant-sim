@@ -9,7 +9,9 @@ const tabs = [
   ['strategy', 'Strategy'],
   ['sponsors', 'Sponsors'],
   ['messages', 'Messages'],
+  ['teams', 'Teams'],
   ['players', 'Players'],
+  ['stats', 'Stats'],
   ['free-agents', 'Free Agents'],
   ['staff', 'Staff'],
   ['finances', 'Finances'],
@@ -28,7 +30,7 @@ export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}
   const nav = document.createElement('nav');
   for (const [route, label] of tabs) {
     const a = document.createElement('a');
-    a.href = route === 'match' ? '#/matches' : `#/` + route;
+    a.href = route === 'match' ? '#/matches' : route === 'team' ? '#/teams' : `#/` + route;
     a.textContent = badges[route] ? `${label} (${badges[route]})` : label;
     if (activeTab === route) a.className = 'active';
     nav.append(a);

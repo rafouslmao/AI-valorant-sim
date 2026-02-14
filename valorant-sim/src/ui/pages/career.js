@@ -15,6 +15,15 @@ function userCoach(state) { return state.coaches.find((c) => c.tid === state.use
 function starters(state, tid) { const t = state.teams.find((x) => x.tid === tid); return (t?.starters || []).map((pid) => state.players.find((p) => p.pid === pid && p.tid === tid)).filter(Boolean); }
 function bench(state, tid) { const sids = new Set((state.teams.find((x) => x.tid === tid)?.starters || [])); return state.players.filter((p) => p.tid === tid && !sids.has(p.pid)); }
 
+function teamDisplayAbbrev(team) {
+  if (!team) return '-';
+  if (/^Team\s+/i.test(team.name)) {
+    const second = team.name.trim().split(/\s+/)[1] || team.name;
+    return second.slice(0, 4).toUpperCase();
+  }
+  return team.abbrev;
+}
+
 function recordFromSchedule(state, tid) {
   let w = 0; let l = 0;
   for (const m of state.schedule) {
@@ -126,25 +135,27 @@ export function renderMatchView(main, state, id) {
   const selected = new URLSearchParams(window.location.hash.split('?')[1] || '').get('box') || 'series';
   const selectedMap = selected === 'series' ? null : (match.result?.maps || [])[Number(selected)];
 
-  const aggregate = (maps) => {
+  const aggregateByTeam = (maps, tid) => {
     const rows = {};
     for (const m of maps) {
-      for (const arr of Object.values(m.playerStats || {})) {
-        for (const p of arr) {
-          if (!rows[p.pid]) rows[p.pid] = { name: p.name, agent: p.agent, kills: 0, deaths: 0, assists: 0, fk: 0, fd: 0, multi: {2:0,3:0,4:0,5:0}, rating: 0, maps: 0 };
-          rows[p.pid].kills += p.kills; rows[p.pid].deaths += p.deaths; rows[p.pid].assists += p.assists;
-          rows[p.pid].fk += p.firstKills || 0; rows[p.pid].fd += p.firstDeaths || 0;
-          rows[p.pid].rating += p.rating || 0; rows[p.pid].maps += 1;
-          for (const r of m.rounds || []) {
-            const cnt = r.killsByPlayer?.[p.pid] || 0;
-            if (cnt >= 2) rows[p.pid].multi[Math.min(5, cnt)] += 1;
-          }
+      for (const p of m.playerStats?.[tid] || []) {
+        if (!rows[p.pid]) rows[p.pid] = { name: p.name, agent: p.agent, kills: 0, deaths: 0, assists: 0, fk: 0, fd: 0, multi: { 2: 0, 3: 0, 4: 0, 5: 0 }, rating: 0, maps: 0 };
+        rows[p.pid].kills += p.kills; rows[p.pid].deaths += p.deaths; rows[p.pid].assists += p.assists;
+        rows[p.pid].fk += p.firstKills || 0; rows[p.pid].fd += p.firstDeaths || 0;
+        rows[p.pid].rating += p.rating || 0; rows[p.pid].maps += 1;
+        for (const r of m.rounds || []) {
+          const cnt = r.killsByPlayer?.[p.pid] || 0;
+          if (cnt >= 2) rows[p.pid].multi[Math.min(5, cnt)] += 1;
         }
       }
     }
-    return Object.values(rows).map((r) => ({ ...r, rating: (r.rating / Math.max(1, r.maps)).toFixed(2) })).sort((a,b)=>b.kills-a.kills);
+    return Object.values(rows).map((r) => ({ ...r, rating: (r.rating / Math.max(1, r.maps)).toFixed(2) })).sort((a, b) => b.kills - a.kills);
   };
-  const boxRows = aggregate(selectedMap ? [selectedMap] : (match.result?.maps || []));
+  const boxMaps = selectedMap ? [selectedMap] : (match.result?.maps || []);
+  const homeBoxRows = aggregateByTeam(boxMaps, match.homeTid);
+  const awayBoxRows = aggregateByTeam(boxMaps, match.awayTid);
+  const homeName = state.teams.find((t) => t.tid === match.homeTid)?.name || 'Home';
+  const awayName = state.teams.find((t) => t.tid === match.awayTid)?.name || 'Away';
 
   main.innerHTML = `<h1>Match View</h1>${lineupWarning}
   <p>Status: ${match.status}</p>
@@ -157,7 +168,10 @@ export function renderMatchView(main, state, id) {
   <h3>Key Moments</h3><ul>${keyMoments}</ul>
   <h3>Economy Panel</h3><table><tr><th>Round</th><th>Home</th><th>Away</th></tr>${econRows || '<tr><td colspan="3">No data</td></tr>'}</table>
   <h3>Box Score</h3><label>View <select id="box-select">${mapOptions.map((o, i) => `<option value="${o}" ${selected===o?'selected':''}>${o==='series'?'Series':`Map ${i}`}</option>`).join('')}</select></label>
-  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/ACE</th><th>Rating</th></tr>${boxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
+  <h4>${homeName} ${selectedMap ? `${selectedMap.finalScore?.[match.homeTid] ?? 0}` : `${match.result?.seriesScore?.[match.homeTid] ?? 0}`}</h4>
+  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/Ace</th><th>Rating</th></tr>${homeBoxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
+  <h4>${awayName} ${selectedMap ? `${selectedMap.finalScore?.[match.awayTid] ?? 0}` : `${match.result?.seriesScore?.[match.awayTid] ?? 0}`}</h4>
+  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/Ace</th><th>Rating</th></tr>${awayBoxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
   <pre>${(live?.log || []).slice(-16).join('\n')}</pre>`;
 
   const canPlay = start.length >= 5;
@@ -217,7 +231,11 @@ export function renderStrategy(main, state) {
 
 export function renderPlayers(main, state) {
   const players = [...state.players].sort((a, b) => b.ovr - a.ovr);
-  const teamName = (tid) => tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === tid)?.abbrev;
+  const teamName = (tid) => {
+    if (tid === null) return 'Free Agent';
+    const team = state.teams.find((t) => t.tid === tid);
+    return teamDisplayAbbrev(team);
+  };
   main.innerHTML = `<h1>Players</h1><table><tr><th>Name</th><th>Team</th><th>OVR</th><th>Roles</th><th>Agent Pool Size</th></tr>${players.map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${teamName(p.tid)}</td><td>${p.ovr}</td><td>${p.roles.join(', ')}</td><td>${Object.keys(p.agentPool.affinities || {}).length}</td></tr>`).join('')}</table>`;
 }
 
@@ -232,7 +250,7 @@ function recommendationPayload(state, p) {
 export function renderFreeAgents(main, state) {
   const coachMode = isCoachMode(state);
   const rosterCount = state.players.filter((p) => p.tid === state.userTid).length;
-  const freeAgents = state.players.filter((p) => p.tid === null).slice(0, 30);
+  const freeAgents = state.players.filter((p) => p.tid === null).sort((a, b) => b.ovr - a.ovr).slice(0, 30);
   main.innerHTML = `<h1>Free Agents</h1><p>Roster spots: ${rosterCount}/${ROSTER_LIMIT}</p><table><tr><th>Name</th><th>OVR</th><th>Expected Salary</th><th>Traits</th><th>Expected Role</th><th>Action</th></tr>${freeAgents.map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${p.ovr}</td><td>${formatMoney(marketValue(p))}</td><td>A:${p.ambition} L:${p.loyalty} G:${p.greed}</td><td>${p.preferredRole}</td><td>${coachMode ? `<button data-recommend="${p.pid}">Recommend to GM</button>` : `<button data-negotiate="${p.pid}">Negotiate</button>`}</td></tr>`).join('')}</table><div id="fa-extra"></div>`;
 
   if (coachMode) {
@@ -369,6 +387,47 @@ export function renderSponsors(main, state) {
     mutateWorld((w) => declineSponsorOffer(w, btn.dataset.decline));
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
+}
+
+
+export function renderTeams(main, state) {
+  const rows = state.teams.map((team) => `<tr><td><a href="#/team?id=${team.tid}">${team.name}</a></td><td>${team.region}</td><td>${recordFromSchedule(state, team.tid)}</td></tr>`).join('');
+  main.innerHTML = `<h1>Teams</h1><table><tr><th>Team</th><th>Region</th><th>W-L</th></tr>${rows}</table>`;
+}
+
+export function renderTeamDetail(main, state, id) {
+  const tid = Number(id);
+  const team = state.teams.find((t) => t.tid === tid);
+  if (!team) return (main.innerHTML = '<p>Team not found.</p>');
+  const coach = state.coaches.find((c) => c.cid === team.headCoachId || (c.tid === team.tid && c.staffRole === 'Head Coach'));
+  const startersRows = starters(state, team.tid).map((p) => `<li><a href="#/player?id=${p.pid}">${p.name}</a> (${p.currentRole})</li>`).join('');
+  const benchRows = bench(state, team.tid).map((p) => `<li><a href="#/player?id=${p.pid}">${p.name}</a> (${p.currentRole})</li>`).join('');
+  const gmLinks = state.meta.mode === 'GM' && state.userTid === team.tid ? '<a href="#/finances">View Finances</a> • ' : '';
+  main.innerHTML = `<h1>${team.name}</h1><p>${team.region} • Record ${recordFromSchedule(state, team.tid)}</p>
+  <p>Head Coach: ${coach ? `<a href="#/coach?id=${coach.cid}">${coach.profile.name}</a>` : 'None'}</p>
+  <h3>Starters</h3><ul>${startersRows || '<li>None</li>'}</ul>
+  <h3>Bench</h3><ul>${benchRows || '<li>None</li>'}</ul>
+  <p>Quick links: <a href="#/players">View Players</a> • ${gmLinks}<a href="#/matches">View Schedule</a></p>`;
+}
+
+export function renderStats(main, state) {
+  const season = String(state.meta.year);
+  const rows = state.players.map((p) => {
+    const st = p.seasonStats?.[season] || { kills: 0, deaths: 0, assists: 0, mapsPlayed: 0 };
+    const team = p.tid === null ? null : state.teams.find((t) => t.tid === p.tid);
+    return {
+      pid: p.pid,
+      name: p.name,
+      team: p.tid === null ? 'FA' : teamDisplayAbbrev(team),
+      kills: st.kills || 0,
+      deaths: st.deaths || 0,
+      assists: st.assists || 0,
+      mapsPlayed: st.mapsPlayed || 0,
+      kd: st.deaths ? (st.kills / st.deaths) : st.kills
+    };
+  }).sort((a, b) => (b.kills - a.kills) || (a.deaths - b.deaths));
+
+  main.innerHTML = `<h1>Stats</h1><h3>Season ${season} - Kills Leaderboard</h3><table><tr><th>Rank</th><th>Player</th><th>Team</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Maps Played</th></tr>${rows.map((r, idx) => `<tr><td>${idx + 1}</td><td><a href="#/player?id=${r.pid}">${r.name}</a></td><td>${r.team}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${Number(r.kd).toFixed(2)}</td><td>${r.mapsPlayed}</td></tr>`).join('')}</table>`;
 }
 
 export function renderPlayerDetail(main, state, id) {

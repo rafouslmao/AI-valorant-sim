@@ -51,3 +51,13 @@ export const REAL_TEAM_DATABASE = [
   { region: 'Pacific', name: 'VARREL', coach: 'TK9', roster: ['Zexy|Duelist', 'Klaus|Duelist/Flex', 'XuNa|Initiator|IGL', 'oonzmlp|Sentinel', 'C1ndeR|Controller'] },
   { region: 'Pacific', name: 'Nongshim RedForce', coach: 'SilKanoN', roster: ['Dambi|Duelist', 'Rb|Controller|IGL', 'Francis|Duelist', 'Xross|Initiator', 'Ivy|Sentinel'] }
 ];
+
+
+export const REAL_FREE_AGENTS = [
+  'JonahP|Initiator', 'Foxy9|Duelist/Controller', 'Shyy|Sentinel/Flex', 'alexiiik|Duelist', 'Juicy|Duelist', 'Inspire|Sentinel', 'DH|Controller', 'QutionerX|Duelist',
+  'tuyZ|Controller/Sentinel', 'Lmemore|Sentinel', 'Dep|Duelist/Sentinel', 'kamyk|Flex', 'OLIZERA|Sentinel', 'MAGNUM|Sentinel', 'ardiss|Duelist', 'Sayaplayer|Duelist',
+  'Polvi|Duelist/Initiator', 'margaret|Sentinel', 'soulcas|Initiator', 'neT|Sentinel', 'paTiTek|Controller/Initiator', 'yay|Sentinel/Flex', 'Derrek|Initiator', 'mindfreak|Controller',
+  'S1Mon|Initiator', 'Famouz|Duelist', 'Persia|Controller', 'xenom|Controller', 'baddyG|Controller', 'RobbieBk|Initiator/Sentinel', 'CyvOph|Initiator', 'Patiphan|Sentinel',
+  'Kess|Initiator', 'doma|Sentinel/Initiator', 'NaturE|Flex', 'ban|Duelist', 'Surf|Sentinel', 'Jremy|Duelist', 'Sayf|Controller', 'Fit1nho|Duelist',
+  'lz|Controller', 'frz|Controller', 'Victor|Sentinel', 'jakee|Controller', 'gobera|Duelist/Sentinel', 'heat|Initiator/Flex', 'Palla|Initiator', 'phc|Controller'
+];

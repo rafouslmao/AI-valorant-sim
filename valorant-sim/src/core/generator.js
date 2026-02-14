@@ -1,5 +1,5 @@
 import { AGENT_ROLES, FACILITY_CONFIG, MAP_POOL, PRACTICE_FOCUS, ROLES } from './constants.js';
-import { REAL_TEAM_DATABASE } from './database.js';
+import { REAL_FREE_AGENTS, REAL_TEAM_DATABASE } from './database.js';
 import { randInt, uid, weightedPick } from './utils.js';
 
 const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES', 'KR'];
@@ -214,6 +214,15 @@ export function generateWorld({ userTid, mode, saveName, userName }) {
     players.push(...teamPlayers);
     team.starters = teamPlayers.filter((p) => p.isStarter).slice(0, 5).map((p) => p.pid);
   });
+
+
+  for (const spec of REAL_FREE_AGENTS) {
+    const fa = createRealPlayer(spec, null);
+    fa.tid = null;
+    fa.isStarter = false;
+    fa.currentContract = { salaryPerYear: fa.salary, yearsRemaining: 0, signedWithTid: null, buyoutClause: 0, rolePromise: 'bench', signingBonus: 0 };
+    players.push(fa);
+  }
 
   return {
     rules: { allowDuplicateAgentsSameTeam: false },

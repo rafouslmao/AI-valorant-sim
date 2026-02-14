@@ -15,6 +15,9 @@ import {
   renderMatchView,
   renderPlayerDetail,
   renderPlayers,
+  renderStats,
+  renderTeamDetail,
+  renderTeams,
   renderPractice,
   renderRoster,
   renderSponsors,
@@ -32,7 +35,7 @@ function renderCareer(path, params) {
   setWorld(state);
 
   const route = path.replace(/^\//, '');
-  const tab = ['player', 'coach'].includes(route) ? 'players' : route;
+  const tab = ['player', 'coach'].includes(route) ? 'players' : ['team'].includes(route) ? 'teams' : route;
 
   renderCareerLayout(app, tab, (main) => {
     if (route === 'home') return renderHome(main, state);
@@ -42,7 +45,10 @@ function renderCareer(path, params) {
     if (route === 'strategy') return renderStrategy(main, state);
     if (route === 'sponsors') return renderSponsors(main, state);
     if (route === 'messages') return renderMessages(main, state);
+    if (route === 'teams') return renderTeams(main, state);
+    if (route === 'team') return renderTeamDetail(main, state, params.get('id'));
     if (route === 'players') return renderPlayers(main, state);
+    if (route === 'stats') return renderStats(main, state);
     if (route === 'free-agents') return renderFreeAgents(main, state);
     if (route === 'staff') return renderStaff(main, state);
     if (route === 'finances') return renderFinances(main, state);
