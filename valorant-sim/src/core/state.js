@@ -116,6 +116,7 @@ export function normalizeWorld(world) {
   if (!('currentEventId' in world)) world.currentEventId = null;
   if (!world.meta.day) world.meta.day = 1;
   if (!('godMode' in world.meta)) world.meta.godMode = false;
+  if (!('tierANoT1Streak' in world.meta)) world.meta.tierANoT1Streak = 0;
   ensureWorldStrategy(world);
   world.messages?.forEach((m) => {
     if (!m.details) m.details = { bullets: [], stats: [], links: [], tags: [] };

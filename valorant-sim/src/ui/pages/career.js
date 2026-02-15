@@ -1,6 +1,6 @@
 import { ALL_AGENTS, FACILITY_CONFIG, INTENSITIES, MAP_POOL, ROLES, ROSTER_LIMIT, SECONDARY_ROLE_TAGS, TRAINING_PRIMARY, TRAINING_SECONDARY } from '../../core/constants.js';
 import { mutateWorld } from '../../core/state.js';
-import { advanceTimeToNextPhase, getFacilityUpgradeCost, getTournamentsForYear, openMatch, playMatchMap, playMatchRounds, playMatchSeries, playMatchToHalf, simulateCurrentTournament, simulateToNextTournament } from '../../core/sim.js';
+import { advanceTimeToNextPhase, getFacilityUpgradeCost, getTournamentsForYear, openMatch, playMatchMap, playMatchRounds, playMatchSeries, playMatchToHalf, requestMatchTimeout, simulateCurrentTournament, simulateToNextTournament } from '../../core/sim.js';
 import { evaluateOffer, marketValue, startNegotiation, submitOffer } from '../../core/contracts.js';
 import { projectedTrainingImpact } from '../../core/training.js';
 import { acceptSponsorOffer, declineSponsorOffer } from '../../core/sponsors.js';
@@ -134,6 +134,34 @@ function matchResultText(state, m) {
   return m.result?.maps?.map((map) => `${map.mapName} ${map.finalScore[m.homeTid]}-${map.finalScore[m.awayTid]}`).join(' | ') || m.result?.summary || 'Final';
 }
 
+
+export function renderSchedule(main, state) {
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const selectedYear = Number(params.get('year') || state.meta.year);
+  const scope = params.get('scope') || 'my';
+  const eventFilter = params.get('event') || 'all';
+  const events = getTournamentsForYear(state, selectedYear);
+  const eventName = (id) => events.find((e) => e.id === id)?.name || '-';
+  let list = (state.schedule || []).filter((m) => m.season === selectedYear);
+  if (eventFilter !== 'all') list = list.filter((m) => m.eventId === eventFilter);
+  if (scope === 'my') list = list.filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
+  list = list.sort((a, b) => (a.day - b.day));
+  const teamName = (tid) => state.teams.find((t) => t.tid === tid)?.name || tid;
+  const rows = list.map((m) => {
+    const isMy = m.homeTid === state.userTid || m.awayTid === state.userTid;
+    const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
+    const opp = isMy ? teamName(oppTid) : `${teamName(m.homeTid)} vs ${teamName(m.awayTid)}`;
+    const status = m.status === 'final' ? 'finished' : m.status === 'inProgress' ? 'live' : 'upcoming';
+    return `<tr><td>${eventName(m.eventId)}</td><td>${m.stage}</td><td>D${m.day}</td><td>${opp}</td><td>${status}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`;
+  }).join('') || '<tr><td colspan="6">No matches.</td></tr>';
+  main.innerHTML = `<h1>Schedule</h1><div class="top-actions"><label>Year <input id="sc-year" type="number" value="${selectedYear}"/></label><label>Scope <select id="sc-scope"><option value="my" ${scope === 'my' ? 'selected' : ''}>My team only</option><option value="all" ${scope === 'all' ? 'selected' : ''}>All matches in selected tournament</option></select></label><label>Tournament <select id="sc-event"><option value="all">All</option>${events.map((e) => `<option value="${e.id}" ${eventFilter === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></label></div><table><tr><th>Event</th><th>Stage</th><th>Date</th><th>Opponent</th><th>Status</th><th></th></tr>${rows}</table>`;
+  const push = () => {
+    const q = new URLSearchParams({ year: main.querySelector('#sc-year').value, scope: main.querySelector('#sc-scope').value, event: main.querySelector('#sc-event').value });
+    window.location.hash = `#/schedule?${q.toString()}`;
+  };
+  ['#sc-year', '#sc-scope', '#sc-event'].forEach((sel) => main.querySelector(sel).onchange = push);
+}
+
 export function renderMatches(main, state) {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const selectedYear = Number(params.get('year') || state.meta.year);
@@ -195,20 +223,20 @@ export function renderMatches(main, state) {
 
 export function renderMatchView(main, state, id) {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const teamName = (tid) => state.teams.find((t) => t.tid === tid)?.name || tid;
   if (params.get('event') === '1') {
     const year = Number(params.get('year') || state.meta.year);
     const event = (state.eventsByYear?.[year] || []).find((e) => e.id === id);
     if (!event) return (main.innerHTML = '<p>Event not found.</p>');
-    const teamName = (tid) => state.teams.find((t) => t.tid === tid)?.name || tid;
+    const linkedMatches = (state.schedule || []).filter((m) => m.eventId === event.id).sort((a, b) => a.day - b.day);
     main.innerHTML = `<h1>${event.name}</h1>
     <p>${event.organizer} • Tier ${event.tier} • ${event.regionScope === 'INTERNATIONAL' ? 'International' : event.region}</p>
     <p>Status: ${event.status}</p><p>Date: D${event.startDay} - D${event.endDay}</p>
     <h3>Invited Teams</h3>
     <p><strong>Accepted:</strong> ${(event.invitedAccepted || []).map(teamName).join(', ') || 'None'}</p>
     <p><strong>Declined:</strong> ${(event.invitedDeclined || []).map(teamName).join(', ') || 'None'}</p>
-    <h3>Qualifier</h3>
-    <p>Participants: ${(event.qualifierParticipants || []).length}</p>
-    <ul>${(event.qualifiersBracket || []).map((x) => `<li>${teamName(x.tid)} - ${x.status}</li>`).join('') || '<li>Not started</li>'}</ul>
+    <h3>Matches</h3>
+    <table><tr><th>Stage</th><th>Day</th><th>Match</th><th>Status</th><th></th></tr>${linkedMatches.map((m) => `<tr><td>${m.stage}</td><td>D${m.day}</td><td>${teamName(m.homeTid)} vs ${teamName(m.awayTid)}</td><td>${m.status === 'final' ? 'finished' : m.status === 'inProgress' ? 'live' : 'upcoming'}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`).join('') || '<tr><td colspan="5">No matches generated.</td></tr>'}</table>
     <h3>Main Event Placements</h3>
     <ol>${(event.placements || []).map((pl) => {
       const pts = (event.pointsAwarded || []).find((z) => z.tid === pl.tid)?.points || 0;
@@ -219,7 +247,40 @@ export function renderMatchView(main, state, id) {
     return;
   }
 
-  main.innerHTML = '<h1>Match View</h1><p>Series-level old match view is deprecated. Use Tournaments tab.</p>';
+  const match = (state.schedule || []).find((m) => m.id === id);
+  if (!match) return (main.innerHTML = '<h1>Match</h1><p>Match not found.</p>');
+
+  const scoreText = match.result ? `${match.result.seriesScore[match.homeTid] || 0}-${match.result.seriesScore[match.awayTid] || 0}` : '-';
+  const live = match.live;
+  const map = live?.maps?.[live.mapIndex];
+  const roundRows = (map?.rounds || []).slice(-8).map((r) => `<tr><td>${r.roundIndex}</td><td>${teamName(r.winnerTid)}</td><td>${r.winType}</td><td>${r.firstKill ? teamName(r.firstKill.tid) : '-'}</td><td>${r.plant ? 'Plant' : '-'}</td><td>${r.defuse ? 'Defuse' : '-'}</td></tr>`).join('') || '<tr><td colspan="6">No rounds yet.</td></tr>';
+
+  main.innerHTML = `<h1>${teamName(match.homeTid)} vs ${teamName(match.awayTid)}</h1>
+  <p>${match.eventName} • ${match.stage} • Day D${match.day}</p>
+  <p>Status: ${match.status} • Series: ${scoreText}</p>
+  <div class="top-actions">
+    ${match.status !== 'final' ? '<button id="play-open">Play Match</button><button id="play-sim">Sim Match</button>' : ''}
+    ${live && !live.finished ? '<button id="play-round">Next Round</button><button id="play-6">+6 Rounds</button><button id="play-half">To Half</button><button id="play-map">To Map End</button><button id="play-series">To Series End</button>' : ''}
+    ${live && !live.finished && state.meta.mode === 'Coach' && (match.homeTid === state.userTid || match.awayTid === state.userTid) ? '<button id="coach-timeout">Call Timeout</button>' : ''}
+  </div>
+  <h3>Live Map</h3>
+  <p>${map ? `${map.mapName} • Score ${map.score[match.homeTid]}-${map.score[match.awayTid]}` : 'Not started'}</p>
+  <table><tr><th>Round</th><th>Winner</th><th>Type</th><th>First Kill</th><th>Plant</th><th>Defuse</th></tr>${roundRows}</table>
+  ${match.result?.maps?.length ? `<h3>Completed Maps</h3><ul>${match.result.maps.map((m) => `<li>${m.mapName}: ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}</li>`).join('')}</ul>` : ''}
+  <p><a href="#/schedule">Back to Schedule</a></p>`;
+
+  const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
+  if (main.querySelector('#play-open')) main.querySelector('#play-open').onclick = () => { mutateWorld((w) => openMatch(w, match.id)); reload(); };
+  if (main.querySelector('#play-sim')) main.querySelector('#play-sim').onclick = () => { mutateWorld((w) => { openMatch(w, match.id); playMatchSeries(w, match.id); }); reload(); };
+  if (main.querySelector('#play-round')) main.querySelector('#play-round').onclick = () => { mutateWorld((w) => playMatchRounds(w, 1, match.id)); reload(); };
+  if (main.querySelector('#play-6')) main.querySelector('#play-6').onclick = () => { mutateWorld((w) => playMatchRounds(w, 6, match.id)); reload(); };
+  if (main.querySelector('#play-half')) main.querySelector('#play-half').onclick = () => { mutateWorld((w) => playMatchToHalf(w, match.id)); reload(); };
+  if (main.querySelector('#play-map')) main.querySelector('#play-map').onclick = () => { mutateWorld((w) => playMatchMap(w, match.id)); reload(); };
+  if (main.querySelector('#play-series')) main.querySelector('#play-series').onclick = () => { mutateWorld((w) => playMatchSeries(w, match.id)); reload(); };
+  if (main.querySelector('#coach-timeout')) main.querySelector('#coach-timeout').onclick = () => {
+    mutateWorld((w) => requestMatchTimeout(w, match.id, w.userTid));
+    reload();
+  };
 }
 
 export function renderStrategy(main, state) {

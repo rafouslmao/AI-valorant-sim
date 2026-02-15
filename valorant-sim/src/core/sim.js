@@ -1,9 +1,9 @@
 import { AGENT_ROLES, PRACTICE_FOCUS } from './constants.js';
 import { clamp, uid } from './utils.js';
-import { computePlayerOverall, createCoach } from './generator.js';
+import { computePlayerOverall, createCoach, generateValorantIgn } from './generator.js';
 import { applyWeeklyTraining } from './training.js';
 import { aiResolveFreeAgency } from './contracts.js';
-import { initializeLiveSeries, playLiveRound, playLiveRounds, simLiveMap, simLiveSeries, simLiveToHalf } from './matchSimBo3.js';
+import { initializeLiveSeries, playLiveRound, playLiveRounds, requestTimeoutForTeam, simLiveMap, simLiveSeries, simLiveToHalf } from './matchSimBo3.js';
 import { addMessage } from './messages.js';
 
 const REGION_MAP = ['Americas', 'EMEA', 'Pacific', 'China'];
@@ -14,6 +14,53 @@ function upgradeCost(facility) {
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function rand(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+
+function ensureNamePools(state) {
+  if (!state.meta.handlePool) state.meta.handlePool = [];
+  if (!state.meta.coachNamePool) state.meta.coachNamePool = [];
+}
+
+function buildEventMatches(state, event) {
+  if (event.matches?.length) return;
+  event.matches = [];
+  state.schedule = state.schedule || [];
+
+  const addMatch = (homeTid, awayTid, stage, dayOffset = 0) => {
+    const m = {
+      id: uid('m'),
+      season: state.meta.year,
+      eventId: event.id,
+      eventName: event.name,
+      stage,
+      day: event.startDay + dayOffset,
+      homeTid,
+      awayTid,
+      bestOf: 3,
+      status: 'scheduled',
+      played: false,
+      live: null,
+      result: null
+    };
+    state.schedule.push(m);
+    event.matches.push(m.id);
+  };
+
+  const qual = (event.qualifierParticipants || []).slice(0, Math.floor((event.qualifierParticipants || []).length / 2) * 2);
+  for (let i = 0; i < qual.length; i += 2) addMatch(qual[i], qual[i + 1], 'Qualifier', 0);
+
+  const mainCandidates = [...new Set([...(event.invitedAccepted || []), ...(event.qualifiedTeams || []), ...(event.qualifierParticipants || []).slice(0, event.qualSlots || 0)])].slice(0, event.mainSlots || 16);
+  for (let i = 0; i < mainCandidates.length; i += 2) {
+    if (mainCandidates[i + 1] == null) break;
+    addMatch(mainCandidates[i], mainCandidates[i + 1], 'Main Event', 2 + Math.floor(i / 2));
+  }
+}
+
+function teamEligibleForEvent(team, event) {
+  if (event.eligibilityTier === 'T1_ONLY') return team.tier === 'Tier 1';
+  if (event.eligibilityTier === 'T2_ONLY') return team.tier === 'Tier 2';
+  return true;
+}
+
 
 function regionForNationality(teamRegion) {
   const pools = {
@@ -40,12 +87,12 @@ function buildAgentPool(role) {
   return { primaryRole: role.toLowerCase(), affinities };
 }
 
-function createTier2Player(team, role = 'Flex') {
+function createTier2Player(team, role = 'Flex', state) {
   const seed = uid('t2p');
   const p = {
     pid: uid('p'),
     tid: team.tid,
-    name: `IGN_${seed.slice(-6)}`,
+    name: generateValorantIgn(new Set(state.players.map((x) => String(x.name).toLowerCase()))),
     age: rand(17, 24),
     nationality: regionForNationality(team.region),
     imageURL: '',
@@ -61,7 +108,7 @@ function createTier2Player(team, role = 'Flex') {
     },
     roleSkills: buildRoleSkills(role),
     agentPool: buildAgentPool(role),
-    trainingPlan: { primaryFocus: role, secondaryFocus: 'None', intensity: 'normal' },
+    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' },
     currentContract: { salaryPerYear: rand(18000, 52000), yearsRemaining: rand(1, 2), signedWithTid: team.tid, buyoutClause: rand(45000, 110000), rolePromise: 'starter', signingBonus: rand(2000, 10000) },
     isStarter: true,
     history: [],
@@ -74,7 +121,8 @@ function createTier2Player(team, role = 'Flex') {
 function ensureCoachCoverage(state) {
   const freeCoaches = state.coaches.filter((c) => c.tid == null);
   if (freeCoaches.length < 24) {
-    for (let i = 0; i < 40; i++) state.coaches.push(createCoach(null, 'Head Coach'));
+    const used = new Set(state.coaches.map((c) => c.profile?.name));
+    for (let i = 0; i < 40; i++) state.coaches.push(createCoach(null, 'Head Coach', null, used));
   }
 }
 
@@ -95,7 +143,7 @@ function fillTier2Rosters(state) {
     const needs = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex', 'Flex'];
     for (const role of needs.slice(roster.length)) {
       const freeByRole = state.players.find((p) => p.tid == null && (p.currentRole === role || p.roles?.includes(role) || role === 'Flex'));
-      const player = freeByRole || createTier2Player(team, role);
+      const player = freeByRole || createTier2Player(team, role, state);
       if (!freeByRole) state.players.push(player);
       player.tid = team.tid;
       player.currentRole = role;
@@ -139,6 +187,7 @@ function generateYearCalendar(state, year) {
     placements: [],
     payouts: [],
     pointsAwarded: [],
+    eligibilityTier: 'ALL',
     ...ev
   });
 
@@ -158,6 +207,7 @@ function generateYearCalendar(state, year) {
         name: `${r} ${orgs[(i + r.length) % orgs.length]} ${i + 1}`,
         organizer: orgs[(i + r.length) % orgs.length],
         tier: 'A',
+        eligibilityTier: 'ALL',
         regionScope: 'REGIONAL',
         region: r,
         startDay: d,
@@ -180,40 +230,61 @@ function generateYearCalendar(state, year) {
 function attendanceScore(team, event, state) {
   const prestige = event.prestige;
   const prize = Math.log10(event.prizePool) * 12;
-  const qualValue = event.tier === 'S' ? 20 : 6;
-  const needPoints = Math.max(0, 140 - (team.circuitPoints || 0)) / 4;
+  const qualValue = event.tier === 'S' ? 20 : 8;
+  const needPoints = Math.max(0, 160 - (team.circuitPoints || 0)) / 4;
   const orgRep = team.teamReputation || 50;
-  const travel = event.regionScope === 'INTERNATIONAL' && team.region !== event.region ? 16 * event.travelCostFactor : 4 * event.travelCostFactor;
+  const travel = event.regionScope === 'INTERNATIONAL' ? 14 * event.travelCostFactor : (team.region === event.region ? 4 : 10) * event.travelCostFactor;
   const fatigue = team.fatigue || 0;
   const conflict = state.eventsByYear[state.meta.year].some((e) => e.id !== event.id && (e.status === 'Qualifiers' || e.status === 'Main Event') && e.mainTeams.includes(team.tid)) ? 45 : 0;
-  return prestige * 0.55 + prize + qualValue + needPoints + orgRep * 0.22 - travel - fatigue * 0.25 - conflict;
+
+  let t1Penalty = 0;
+  if (event.tier === 'A' && team.tier === 'Tier 1') {
+    const elo = team.elo || 1500;
+    const scheduleLoad = state.schedule.filter((m) => m.season === state.meta.year && (m.homeTid === team.tid || m.awayTid === team.tid) && m.status !== 'final').length;
+    const lowNeed = Math.max(0, ((team.circuitPoints || 0) - 100) / 25);
+    const warmup = (team.teamCohesion || 50) < 52 ? -8 : 0;
+    t1Penalty = (elo > 1675 ? 18 : elo > 1575 ? 10 : 4) + scheduleLoad * 1.8 + travel * 0.45 + lowNeed * 4 + warmup;
+  }
+  if (event.tier === 'A' && team.tier === 'Tier 2') t1Penalty -= 10;
+  if (event.tier === 'A' && state.meta.tierANoT1Streak >= 2 && team.tier === 'Tier 1') t1Penalty -= 12;
+  return prestige * 0.55 + prize + qualValue + needPoints + orgRep * 0.22 - travel - fatigue * 0.25 - conflict - t1Penalty;
 }
 
 function setupEventParticipation(state, event) {
-  const eligible = state.teams.filter((t) => event.regionScope === 'INTERNATIONAL' || t.region === event.region);
+  const eligible = state.teams.filter((t) => (event.regionScope === 'INTERNATIONAL' || t.region === event.region) && teamEligibleForEvent(t, event));
   const ranked = [...eligible].sort((a, b) => rankingScore(b) - rankingScore(a));
   const invited = ranked.slice(0, event.inviteSlots);
 
   for (const team of invited) {
     const score = attendanceScore(team, event, state);
-    const threshold = event.tier === 'S' ? 35 : 55;
+    const threshold = event.tier === 'S' ? 35 : (team.tier === 'Tier 1' ? 60 : 48);
     if (score > threshold) event.invitedAccepted.push(team.tid); else event.invitedDeclined.push(team.tid);
   }
 
   let inviteCursor = event.inviteSlots;
   while (event.invitedAccepted.length < event.inviteSlots && inviteCursor < ranked.length) {
     const replacement = ranked[inviteCursor++];
-    event.invitedAccepted.push(replacement.tid);
+    if (!event.invitedAccepted.includes(replacement.tid)) event.invitedAccepted.push(replacement.tid);
   }
 
   const optInPool = ranked.filter((t) => !event.invitedAccepted.includes(t.tid));
   for (const team of optInPool) {
-    if (attendanceScore(team, event, state) > (event.tier === 'S' ? 25 : 45)) event.qualifierParticipants.push(team.tid);
+    const baseThreshold = event.tier === 'S' ? 25 : (team.tier === 'Tier 1' ? 52 : 42);
+    const score = attendanceScore(team, event, state);
+    if (score > baseThreshold) event.qualifierParticipants.push(team.tid);
   }
 
   const maxQual = Math.max(event.qualSlots * 3, event.qualSlots + 2);
   event.qualifierParticipants = event.qualifierParticipants.slice(0, maxQual);
   event.status = 'Upcoming';
+
+  if (event.tier === 'A') {
+    const t1Count = event.invitedAccepted.filter((tid) => state.teams.find((t) => t.tid === tid)?.tier === 'Tier 1').length;
+    if (t1Count === 0) state.meta.tierANoT1Streak = (state.meta.tierANoT1Streak || 0) + 1;
+    else state.meta.tierANoT1Streak = 0;
+  }
+
+  buildEventMatches(state, event);
 }
 
 function runQualifier(event, state) {
@@ -291,6 +362,7 @@ function ensureYearSetup(state) {
   fillTier2Rosters(state);
   aiResolveFreeAgency(state);
   state.eventsByYear = state.eventsByYear || {};
+  state.schedule = (state.schedule || []).filter((m) => m.season !== year);
   state.eventsByYear[year] = generateYearCalendar(state, year);
   for (const e of state.eventsByYear[year]) setupEventParticipation(state, e);
   state.meta.initializedYear = year;
@@ -419,36 +491,42 @@ export function computeFacilityEffects(team) {
   };
 }
 
-export function openMatch(state) {
-  const match = state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
+export function openMatch(state, matchId = null) {
+  const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
   if (!match) return null;
   initializeLiveSeries(state, match);
   return match;
 }
-export function playMatchRounds(state, n = 6) {
-  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+export function playMatchRounds(state, n = 6, matchId = null) {
+  const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
   playLiveRounds(state, match, n);
   return match;
 }
-export function playMatchToHalf(state) {
-  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+export function playMatchToHalf(state, matchId = null) {
+  const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
   simLiveToHalf(state, match);
   return match;
 }
-export function playMatchMap(state) {
-  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+export function playMatchMap(state, matchId = null) {
+  const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
   simLiveMap(state, match);
   return match;
 }
-export function playMatchSeries(state) {
-  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+export function playMatchSeries(state, matchId = null) {
+  const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
   simLiveSeries(state, match);
   return match;
 }
+export function requestMatchTimeout(state, matchId, tid) {
+  const match = state.schedule.find((m) => m.id === matchId);
+  if (!match?.live) return false;
+  return requestTimeoutForTeam(match, tid);
+}
+
 export function simulateNextMatchForUserTeam(state) { return advanceTimeToNextPhase(state); }
 export function simulateWeek(state) { return advanceTimeToNextPhase(state); }
 

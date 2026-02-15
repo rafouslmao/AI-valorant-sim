@@ -4,6 +4,7 @@ import { clearWorld } from '../../core/state.js';
 const tabs = [
   ['home', 'Career Home'],
   ['roster', 'Roster'],
+  ['schedule', 'Schedule'],
   ['matches', 'Tournaments'],
   ['match', 'Match View'],
   ['strategy', 'Strategy'],

@@ -12,6 +12,7 @@ import {
   renderFreeAgents,
   renderHome,
   renderMatches,
+  renderSchedule,
   renderMatchView,
   renderPlayerDetail,
   renderPlayers,
@@ -42,6 +43,7 @@ function renderCareer(path, params) {
   renderCareerLayout(app, tab, (main) => {
     if (route === 'home') return renderHome(main, state);
     if (route === 'roster') return renderRoster(main, state);
+    if (route === 'schedule') return renderSchedule(main, state);
     if (route === 'matches') return renderMatches(main, state);
     if (route === 'match') return renderMatchView(main, state, params.get('id'));
     if (route === 'strategy') return renderStrategy(main, state);

@@ -177,6 +177,7 @@ function initMapLive(state, match, mapId, mapMeta) {
       [match.awayTid]: makeStatsRows(awayPlayers, awayAgents)
     },
     timeouts: { [match.homeTid]: 2, [match.awayTid]: 2 },
+    forceTimeoutByTid: { [match.homeTid]: false, [match.awayTid]: false },
     finished: false,
     winnerTid: null
   };
@@ -227,9 +228,11 @@ function maybeTimeout(match, map, tid, roundIndex) {
   const scoreDiff = map.score[oppTid] - map.score[tid];
   const atMatchPoint = map.score[oppTid] >= 12;
   const lowEcon = map.credits[tid] < 2200;
-  const shouldCall = scoreDiff >= 4 || atMatchPoint || (lowEcon && Math.random() < 0.35);
+  const manual = Boolean(map.forceTimeoutByTid?.[tid]);
+  const shouldCall = manual || scoreDiff >= 4 || atMatchPoint || (lowEcon && Math.random() < 0.35);
   if (!shouldCall) return null;
   map.timeouts[tid] -= 1;
+  if (map.forceTimeoutByTid) map.forceTimeoutByTid[tid] = false;
   const reason = atMatchPoint ? 'matchPoint' : scoreDiff >= 4 ? 'losingStreak' : 'econ';
   const timeout = { type: 'timeout', byTid: tid, roundIndex, reason, effect: 'focusBuff' };
   map.keyMoments.push(timeout);
@@ -360,7 +363,7 @@ export function initializeLiveSeries(state, match) {
   return match.live;
 }
 
-function concludeIfNeeded(match) {
+function concludeIfNeeded(state, match) {
   const live = match.live;
   const currentMap = live.maps[live.mapIndex];
   if (!currentMap) return;
@@ -420,7 +423,7 @@ export function playLiveRound(state, match) {
   if (match.live.finished) return;
   const live = match.live;
   const map = live.maps[live.mapIndex];
-  if (!map || map.finished) return concludeIfNeeded(match);
+  if (!map || map.finished) return concludeIfNeeded(state, match);
 
   const homeTeam = state.teams.find((t) => t.tid === match.homeTid);
   const awayTeam = state.teams.find((t) => t.tid === match.awayTid);
@@ -516,7 +519,14 @@ export function playLiveRound(state, match) {
   if (clutches.length) map.keyMoments.push({ type: 'clutch', roundIndex: live.roundIndex, pid: clutches[0].pid, tid: clutches[0].tid, vs: clutches[0].vs, importance: 50 + clutches[0].vs * 5 });
   map.keyMoments.sort((a, b) => (b.importance || 0) - (a.importance || 0));
 
-  concludeIfNeeded(match);
+  concludeIfNeeded(state, match);
+}
+
+export function requestTimeoutForTeam(match, tid) {
+  const map = match?.live?.maps?.[match.live.mapIndex];
+  if (!map || map.timeouts[tid] <= 0) return false;
+  map.forceTimeoutByTid[tid] = true;
+  return true;
 }
 
 export function playLiveRounds(state, match, n = 1) {

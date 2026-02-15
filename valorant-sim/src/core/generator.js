@@ -7,6 +7,16 @@ const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES
 const coachStyles = ['Structured', 'Loose', 'Reactive', 'Prep-heavy'];
 const T2_REGIONS = ['Americas', 'EMEA', 'Pacific', 'China'];
 
+const ORG_PARTS = {
+  Americas: { pre: ['North', 'South', 'Prime', 'Rapid', 'Crimson', 'Solar', 'Apex', 'Stone', 'Drift', 'Vanta'], core: ['Orbit', 'Pulse', 'Rangers', 'Forge', 'Raid', 'Union', 'Vertex', 'Ghost', 'Core', 'Flux'], post: ['Esports', 'Gaming', 'Collective', 'Crew', 'Squad'] },
+  EMEA: { pre: ['Iron', 'Royal', 'Silent', 'Polar', 'Night', 'Ivory', 'Hexa', 'Frost', 'Nova', 'Prime'], core: ['Wolves', 'Circuit', 'Legion', 'Foundry', 'Horizon', 'Crest', 'Echo', 'Astra', 'Division', 'Guild'], post: ['Esports', 'Gaming', 'Project', 'Unit', 'Collective'] },
+  Pacific: { pre: ['Kirin', 'Lotus', 'Storm', 'Azure', 'Onyx', 'Shin', 'Neo', 'Typhoon', 'Manta', 'Rising'], core: ['Dragons', 'Wave', 'Axis', 'Raiders', 'Tempo', 'Dynasty', 'Rift', 'Crew', 'Flash', 'Orbit'], post: ['Esports', 'Gaming', 'Division', 'Crew', 'Unit'] },
+  China: { pre: ['Red', 'Golden', 'Jade', 'Tiger', 'Sky', 'Dragon', 'Lunar', 'Steel', 'Spirit', 'Phoenix'], core: ['Guard', 'Vanguard', 'Force', 'Circuit', 'Myth', 'Realm', 'Spear', 'Orbit', 'Front', 'Rise'], post: ['Esports', 'Gaming', 'Club', 'Team', 'Unit'] }
+};
+
+const COACH_SYLLABLES = ['fro', 'shaw', 'bon', 'min', 'slig', 'kap', 'zon', 'ter', 'leg', 'ange', 'oni', 'alek', 'vex', 'drin', 'mako', 'ryx', 'dari'];
+const HANDLE_POOL = ['nova', 'rift', 'zen', 'vanta', 'shade', 'kilo', 'skye', 'torq', 'rune', 'flux', 'prism', 'kaze', 'mori', 'lyx', 'raze'];
+
 function hashNum(input) {
   let h = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -18,6 +28,14 @@ function hashNum(input) {
 
 function seededRange(seed, min, max) {
   return min + (seed % (max - min + 1));
+}
+
+function stylizeMixCase(name) {
+  if (name.length < 4) return name.toUpperCase();
+  const chars = name.split('');
+  chars[0] = chars[0].toLowerCase();
+  chars[chars.length - 1] = chars[chars.length - 1].toUpperCase();
+  return chars.join('');
 }
 
 function genAttributes(seedKey) {
@@ -35,6 +53,33 @@ function genAttributes(seedKey) {
 export function computePlayerOverall(player) {
   if (!player.derived) computeDerivedRatings(player, {});
   return player.ovr || 55;
+}
+
+export function generateValorantIgn(used = new Set()) {
+  for (let i = 0; i < 120; i++) {
+    const base = `${HANDLE_POOL[randInt(0, HANDLE_POOL.length - 1)]}${Math.random() < 0.45 ? HANDLE_POOL[randInt(0, HANDLE_POOL.length - 1)].slice(0, randInt(1, 3)) : ''}`.slice(0, randInt(4, 7));
+    const pick = Math.random() < 0.2 ? stylizeMixCase(base) : base.toLowerCase();
+    const withUnderscore = Math.random() < 0.08 ? `${pick.slice(0, 2)}_${pick.slice(2)}` : pick;
+    if (!used.has(withUnderscore)) { used.add(withUnderscore); return withUnderscore; }
+  }
+  const fb = `ign${uid('h').slice(-4)}`;
+  used.add(fb);
+  return fb;
+}
+
+function randomCoachIgn(used = new Set()) {
+  for (let i = 0; i < 120; i++) {
+    const a = COACH_SYLLABLES[randInt(0, COACH_SYLLABLES.length - 1)];
+    const b = Math.random() < 0.65 ? COACH_SYLLABLES[randInt(0, COACH_SYLLABLES.length - 1)] : '';
+    const raw = `${a}${b}`.slice(0, randInt(4, 7));
+    const styleRoll = Math.random();
+    const name = styleRoll < 0.2 ? stylizeMixCase(raw) : styleRoll < 0.28 ? raw.toUpperCase() : raw.toLowerCase();
+    const maybeUnderscore = Math.random() < 0.07 && name.length > 4 ? `${name.slice(0, 3)}_${name.slice(3)}` : name;
+    if (!used.has(maybeUnderscore)) { used.add(maybeUnderscore); return maybeUnderscore; }
+  }
+  const fb = `coach${uid('c').slice(-3)}`;
+  used.add(fb);
+  return fb;
 }
 
 function initAgentPool(primaryRole, seedKey) {
@@ -122,14 +167,8 @@ function coreCoachRatings(seedKey) {
 
 function slider(seed) { return Number((((seed % 201) - 100) / 100).toFixed(2)); }
 
-function randomCoachIgn() {
-  const p1 = ['Ace', 'Veto', 'Nova', 'Raven', 'Echo', 'Luma', 'Ghost', 'Hex', 'Pulse', 'Cipher'];
-  const p2 = ['Mind', 'Craft', 'Prep', 'Call', 'Book', 'Core', 'Shift', 'Flow', 'Forge', 'Zen'];
-  return `${p1[randInt(0, p1.length - 1)]}${p2[randInt(0, p2.length - 1)]}${randInt(10, 99)}`;
-}
-
-export function createCoach(tid = null, role = 'Head Coach', forcedName) {
-  const base = forcedName || randomCoachIgn();
+export function createCoach(tid = null, role = 'Head Coach', forcedName, usedCoachNames = null) {
+  const base = forcedName || randomCoachIgn(usedCoachNames || new Set());
   const h = hashNum(base + tid + role);
   const coach = {
     cid: uid('c'), tid, staffRole: role, salary: seededRange(h * 3, 30000, 100000),
@@ -159,6 +198,21 @@ function defaultStrategy() {
     maps: Object.fromEntries(MAP_POOL.map((m) => [m.id, { defaultCompId: '', comps: [] }])),
     global: { defaultCompId: '', comps: [] }
   };
+}
+
+function teamAbbrevFromName(name, used = new Set()) {
+  const parts = name.replace(/[^A-Za-z\s]/g, ' ').split(/\s+/).filter(Boolean).filter((w) => !['Team', 'Esports', 'Gaming', 'Club', 'Collective', 'Unit', 'Project'].includes(w));
+  let code = (parts.slice(0, 3).map((w) => w[0]).join('') || name.slice(0, 3)).toUpperCase();
+  code = code.slice(0, 4);
+  if (code.length < 3) code = `${code}${name.replace(/[^A-Za-z]/g, '').slice(0, 3)}`.slice(0, 3).toUpperCase();
+  let out = code;
+  let n = 1;
+  while (used.has(out)) {
+    out = `${code.slice(0, 3)}${n}`.slice(0, 4);
+    n += 1;
+  }
+  used.add(out);
+  return out;
 }
 
 function createTeam(seedTeam, tid, tier = 'Tier 1') {
@@ -195,18 +249,32 @@ function createTeam(seedTeam, tid, tier = 'Tier 1') {
     elo,
     circuitPoints: 0,
     eventsPlayedThisYear: 0,
-    lastEventPlayed: null
-    ,teamCohesion: seededRange(h * 23, 42, 68)
-    ,compFamiliarity: mapFamiliarityTemplate()
+    lastEventPlayed: null,
+    teamCohesion: seededRange(h * 23, 42, 68),
+    compFamiliarity: mapFamiliarityTemplate()
   };
 }
 
-function createTier2Teams(startTid) {
+function createTier2TeamName(region, usedNames) {
+  const pool = ORG_PARTS[region] || ORG_PARTS.Americas;
+  for (let i = 0; i < 200; i++) {
+    const name = `${pool.pre[randInt(0, pool.pre.length - 1)]} ${pool.core[randInt(0, pool.core.length - 1)]}${Math.random() < 0.55 ? ` ${pool.post[randInt(0, pool.post.length - 1)]}` : ''}`;
+    if (!usedNames.has(name)) { usedNames.add(name); return name; }
+  }
+  const fb = `${region} ${uid('org').slice(-4).toUpperCase()}`;
+  usedNames.add(fb);
+  return fb;
+}
+
+function createTier2Teams(startTid, usedNames, usedCodes) {
   const teams = [];
   let tid = startTid;
   for (const region of T2_REGIONS) {
     for (let i = 1; i <= 24; i++) {
-      teams.push(createTeam({ name: `${region} Contenders ${i}`, region }, tid++, 'Tier 2'));
+      const name = createTier2TeamName(region, usedNames);
+      const team = createTeam({ name, region }, tid++, 'Tier 2');
+      team.abbrev = teamAbbrevFromName(name, usedCodes);
+      teams.push(team);
     }
   }
   return teams;
@@ -231,28 +299,34 @@ function initialSponsorOffers(teams) {
 
 export function generateWorld({ userTid, mode, saveName, userName }) {
   const year = 2027;
-  const tier1Teams = REAL_TEAM_DATABASE.map((t, tid) => createTeam(t, tid, 'Tier 1'));
-  const tier2Teams = createTier2Teams(tier1Teams.length);
+  const usedTeamNames = new Set(REAL_TEAM_DATABASE.map((t) => t.name));
+  const usedTeamCodes = new Set();
+  const tier1Teams = REAL_TEAM_DATABASE.map((t, tid) => {
+    const team = createTeam(t, tid, 'Tier 1');
+    team.abbrev = teamAbbrevFromName(team.name, usedTeamCodes);
+    return team;
+  });
+  const tier2Teams = createTier2Teams(tier1Teams.length, usedTeamNames, usedTeamCodes);
   const teams = [...tier1Teams, ...tier2Teams];
   const players = REAL_IMPORTED_PLAYERS.map((p) => createImportedPlayer(p));
   const coaches = [];
+  const usedCoachNames = new Set();
 
   for (const team of teams) {
     const assignCoach = team.tier === 'Tier 1' || Math.random() < 0.55;
     if (!assignCoach) continue;
     if (mode === 'Coach' && team.tid === userTid) {
-      const userCoach = createCoach(team.tid, 'Head Coach', userName || randomCoachIgn());
+      const userCoach = createCoach(team.tid, 'Head Coach', userName || randomCoachIgn(usedCoachNames), usedCoachNames);
       coaches.push(userCoach);
       team.headCoachId = userCoach.cid;
     } else {
-      const hc = createCoach(team.tid, 'Head Coach');
+      const hc = createCoach(team.tid, 'Head Coach', null, usedCoachNames);
       coaches.push(hc);
       team.headCoachId = hc.cid;
     }
   }
 
-  // coach market pool to prevent shortages
-  for (let i = 0; i < 180; i++) coaches.push(createCoach(null, 'Head Coach'));
+  for (let i = 0; i < 180; i++) coaches.push(createCoach(null, 'Head Coach', null, usedCoachNames));
 
   for (const team of tier1Teams) {
     const teamPlayers = players.filter((p) => p.tid === team.tid);
