@@ -58,6 +58,13 @@ function ensureTeamShape(team, worldPlayers) {
   if (!team.coachQuality) team.coachQuality = 55;
   if (!team.rosterStrength) team.rosterStrength = 55;
   if (!team.wageBudget) team.wageBudget = 320000;
+  if (!team.yearlyBudget) team.yearlyBudget = team.budget || 300000;
+  if (!team.elo) team.elo = team.tier === 'Tier 2' ? 1250 : 1500;
+  if (!team.circuitPoints) team.circuitPoints = 0;
+  if (!team.eventsPlayedThisYear) team.eventsPlayedThisYear = 0;
+  if (!team.winnings) team.winnings = 0;
+  if (!team.expensesTravel) team.expensesTravel = 0;
+  if (!team.expensesSalaries) team.expensesSalaries = 0;
   if (!team.mapRatings) team.mapRatings = {};
   if (!team.strategy) {
     team.strategy = {
@@ -97,6 +104,10 @@ export function normalizeWorld(world) {
   if (!world.history) world.history = { seasons: {}, matches: {} };
   if (!world.history.seasons) world.history.seasons = {};
   if (!world.history.matches) world.history.matches = {};
+  if (!world.eventsByYear) world.eventsByYear = {};
+  if (!world.eventLog) world.eventLog = [];
+  if (!('currentEventId' in world)) world.currentEventId = null;
+  if (!world.meta.day) world.meta.day = 1;
   ensureWorldStrategy(world);
   world.messages?.forEach((m) => {
     if (!m.details) m.details = { bullets: [], stats: [], links: [], tags: [] };

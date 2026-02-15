@@ -4,7 +4,7 @@ import { clearWorld } from '../../core/state.js';
 const tabs = [
   ['home', 'Career Home'],
   ['roster', 'Roster'],
-  ['matches', 'Matches'],
+  ['matches', 'Tournaments'],
   ['match', 'Match View'],
   ['strategy', 'Strategy'],
   ['sponsors', 'Sponsors'],
@@ -49,7 +49,7 @@ export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}
   const main = document.createElement('main');
   const topBar = document.createElement('div');
   topBar.className = 'main-topbar';
-  topBar.innerHTML = `<div></div><div class="top-actions"><button id="sim-next-global">Sim Next Match</button><button id="sim-week-global">Sim Week</button></div>`;
+  topBar.innerHTML = `<div></div><div class="top-actions"><button id="sim-next-global">Advance Time</button><button id="sim-week-global">Sim to Next Tournament</button><button id="sim-tournament-global">Sim This Tournament</button></div>`;
   main.append(topBar);
 
   const content = document.createElement('div');
@@ -58,6 +58,7 @@ export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}
 
   topBar.querySelector('#sim-next-global').onclick = () => actions.onSimNext?.();
   topBar.querySelector('#sim-week-global').onclick = () => actions.onSimWeek?.();
+  topBar.querySelector('#sim-tournament-global').onclick = () => actions.onSimTournament?.();
 
   wrap.append(side, main);
   root.append(wrap);

@@ -1,6 +1,6 @@
 import { ALL_AGENTS, FACILITY_CONFIG, INTENSITIES, MAP_POOL, ROSTER_LIMIT, SECONDARY_ROLE_TAGS, TRAINING_PRIMARY, TRAINING_SECONDARY } from '../../core/constants.js';
 import { mutateWorld } from '../../core/state.js';
-import { getFacilityUpgradeCost, openMatch, playMatchMap, playMatchRounds, playMatchSeries, playMatchToHalf, simulateNextMatchForUserTeam, simulateWeek } from '../../core/sim.js';
+import { advanceTimeToNextPhase, getFacilityUpgradeCost, getTournamentsForYear, openMatch, playMatchMap, playMatchRounds, playMatchSeries, playMatchToHalf, simulateCurrentTournament, simulateToNextTournament } from '../../core/sim.js';
 import { evaluateOffer, marketValue, startNegotiation, submitOffer } from '../../core/contracts.js';
 import { projectedTrainingImpact } from '../../core/training.js';
 import { acceptSponsorOffer, declineSponsorOffer } from '../../core/sponsors.js';
@@ -48,8 +48,9 @@ function currentSeasonMatches(state) {
 }
 
 export function getLayoutBadges(state) { return { messages: getUnreadCount(state) || undefined }; }
-export function simulateNextAction() { mutateWorld((w) => simulateNextMatchForUserTeam(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
-export function simulateWeekAction() { mutateWorld((w) => simulateWeek(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+export function simulateNextAction() { mutateWorld((w) => advanceTimeToNextPhase(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+export function simulateWeekAction() { mutateWorld((w) => simulateToNextTournament(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+export function simulateTournamentAction() { mutateWorld((w) => simulateCurrentTournament(w)); window.dispatchEvent(new HashChangeEvent('hashchange')); }
 
 export function renderHome(main, state) {
   const team = getUserTeam(state);
@@ -107,125 +108,91 @@ function matchResultText(state, m) {
 }
 
 export function renderMatches(main, state) {
-  const seasonParam = new URLSearchParams(window.location.hash.split('?')[1] || '').get('season');
-  const selectedSeason = Number(seasonParam || state.meta.year);
-  const teamByTid = (tid) => state.teams.find((t) => t.tid === tid);
-  const historySeasons = Object.keys(state.history?.seasons || {}).map(Number).sort((a, b) => b - a);
-  const seasonOptions = [state.meta.year, ...historySeasons.filter((y) => y !== state.meta.year)].sort((a, b) => b - a);
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const selectedYear = Number(params.get('year') || state.meta.year);
+  const statusFilter = params.get('status') || 'all';
+  const tierFilter = params.get('tier') || 'all';
+  const orgFilter = params.get('org') || 'all';
+  const regionFilter = params.get('region') || 'all';
+  const yearOptions = Object.keys(state.eventsByYear || {}).map(Number).concat([state.meta.year]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => b - a);
+  const events = getTournamentsForYear(state, selectedYear);
+  const today = selectedYear === state.meta.year ? (state.meta.day || 1) : 999;
 
-  if (selectedSeason === state.meta.year) {
-    const matches = currentSeasonMatches(state).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
-    main.innerHTML = `<h1>Matches</h1><label>Season <select id="season-select">${seasonOptions.map((y) => `<option value="${y}" ${y === selectedSeason ? 'selected' : ''}>${y}</option>`).join('')}</select></label><table><tr><th>Week</th><th>Match</th><th>User W-L</th><th>Opp W-L</th><th>Status</th><th></th></tr>${matches.map((m) => {
-      const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
-      const home = teamByTid(m.homeTid); const away = teamByTid(m.awayTid);
-      return `<tr><td>${m.week}</td><td>${home.abbrev} vs ${away.abbrev}</td><td>${recordFromMatchList(matches, state.userTid)}</td><td>${recordFromMatchList(matches, oppTid)}</td><td>${matchResultText(state, m)}</td><td>${m.status === 'final' ? `<a href="#/match?id=${m.mid}">View Result</a>` : `<a href="#/match?id=${m.mid}">Open Match</a>`}</td></tr>`;
-    }).join('')}</table>`;
-  } else {
-    const archive = state.history?.seasons?.[selectedSeason];
-    const matches = (archive?.schedule || []).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
-    main.innerHTML = `<h1>Matches</h1><label>Season <select id="season-select">${seasonOptions.map((y) => `<option value="${y}" ${y === selectedSeason ? 'selected' : ''}>${y}</option>`).join('')}</select></label><p>Past season (read-only)</p><table><tr><th>Week</th><th>Match</th><th>User W-L</th><th>Opp W-L</th><th>Status</th><th></th></tr>${matches.map((m) => {
-      const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
-      const home = teamByTid(m.homeTid); const away = teamByTid(m.awayTid);
-      return `<tr><td>${m.week}</td><td>${home.abbrev} vs ${away.abbrev}</td><td>${recordFromMatchList(matches, state.userTid)}</td><td>${recordFromMatchList(matches, oppTid)}</td><td>${m.status || 'Final'}</td><td><a href="#/match?id=${m.matchId}&season=${selectedSeason}">View Result</a></td></tr>`;
-    }).join('') || '<tr><td colspan="6">No archived matches.</td></tr>'}</table>`;
-  }
+  const decorate = (e) => {
+    const ongoing = e.startDay <= today && e.endDay >= today && e.status !== 'Finished';
+    const past = e.endDay < today || e.status === 'Finished';
+    const status = past ? 'Finished' : ongoing ? (e.status === 'Main Event' ? 'Main Event' : 'Qualifiers') : 'Upcoming';
+    const bucket = ongoing ? 'ongoing' : past ? 'past' : 'upcoming';
+    return { ...e, statusText: status, bucket };
+  };
 
-  const sel = main.querySelector('#season-select');
-  if (sel) sel.onchange = (e) => { window.location.hash = `#/matches?season=${e.target.value}`; };
+  const filtered = events.map(decorate).filter((e) => {
+    if (statusFilter !== 'all' && e.bucket !== statusFilter) return false;
+    if (tierFilter !== 'all' && e.tier !== tierFilter) return false;
+    if (orgFilter !== 'all' && e.organizer !== orgFilter) return false;
+    if (regionFilter !== 'all' && e.region !== regionFilter && !(regionFilter === 'international' && e.regionScope === 'INTERNATIONAL')) return false;
+    return true;
+  });
+
+  const section = (title, key) => {
+    const list = filtered.filter((e) => e.bucket === key);
+    return `<h3>${title}</h3><table><tr><th>Event</th><th>Tier</th><th>Scope</th><th>Dates</th><th>Status</th><th>Invites</th><th>Qualifier</th><th></th></tr>${list.map((e) => `<tr><td>${e.name}<br/><small>${e.organizer}</small></td><td>${e.tier}</td><td>${e.regionScope === 'INTERNATIONAL' ? 'International' : e.region}</td><td>D${e.startDay}-D${e.endDay}</td><td><span>${e.statusText}</span></td><td>${e.invitedAccepted.length}/${e.inviteSlots} accepted, ${e.invitedDeclined.length} declined</td><td>${e.qualifierParticipants.length}</td><td><a href="#/match?id=${e.id}&event=1&year=${selectedYear}">Open</a></td></tr>`).join('') || '<tr><td colspan="8">None</td></tr>'}</table>`;
+  };
+
+  const orgs = ['all', ...Array.from(new Set(events.map((e) => e.organizer)))];
+  main.innerHTML = `<h1>Tournaments</h1>
+  <div class="top-actions">
+    <label>Year <select id="yr">${yearOptions.map((y) => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('')}</select></label>
+    <label>Tier <select id="tier"><option value="all">All</option><option value="S" ${tierFilter === 'S' ? 'selected' : ''}>S</option><option value="A" ${tierFilter === 'A' ? 'selected' : ''}>A</option></select></label>
+    <label>Organizer <select id="org">${orgs.map((o) => `<option value="${o}" ${o === orgFilter ? 'selected' : ''}>${o}</option>`).join('')}</select></label>
+    <label>Region <select id="region"><option value="all">All</option><option value="Americas">Americas</option><option value="EMEA">EMEA</option><option value="Pacific">Pacific</option><option value="China">China</option><option value="international">International</option></select></label>
+    <label>Status <select id="status"><option value="all">All</option><option value="ongoing" ${statusFilter === 'ongoing' ? 'selected' : ''}>Ongoing</option><option value="upcoming" ${statusFilter === 'upcoming' ? 'selected' : ''}>Upcoming</option><option value="past" ${statusFilter === 'past' ? 'selected' : ''}>Past</option></select></label>
+  </div>
+  ${section('ONGOING', 'ongoing')}
+  ${section('UPCOMING', 'upcoming')}
+  ${section('PAST', 'past')}`;
+
+  main.querySelector('#region').value = regionFilter;
+  const push = () => {
+    const q = new URLSearchParams({
+      year: main.querySelector('#yr').value,
+      tier: main.querySelector('#tier').value,
+      org: main.querySelector('#org').value,
+      region: main.querySelector('#region').value,
+      status: main.querySelector('#status').value
+    });
+    window.location.hash = `#/matches?${q.toString()}`;
+  };
+  ['#yr', '#tier', '#org', '#region', '#status'].forEach((sel) => main.querySelector(sel).onchange = push);
 }
 
 export function renderMatchView(main, state, id) {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const requestedSeason = Number(params.get('season') || state.meta.year);
-  const isHistory = requestedSeason !== state.meta.year;
-
-  const currentUserMatches = currentSeasonMatches(state).filter((m) => m.homeTid === state.userTid || m.awayTid === state.userTid);
-  let match = null;
-  if (isHistory) {
-    match = state.history?.matches?.[id] || null;
-  } else {
-    match = currentUserMatches.find((m) => m.mid === id) || currentUserMatches.find((m) => m.status !== 'final') || currentUserMatches[0];
-    if (match) mutateWorld((w) => openMatch(w, match.mid));
+  if (params.get('event') === '1') {
+    const year = Number(params.get('year') || state.meta.year);
+    const event = (state.eventsByYear?.[year] || []).find((e) => e.id === id);
+    if (!event) return (main.innerHTML = '<p>Event not found.</p>');
+    const teamName = (tid) => state.teams.find((t) => t.tid === tid)?.name || tid;
+    main.innerHTML = `<h1>${event.name}</h1>
+    <p>${event.organizer} • Tier ${event.tier} • ${event.regionScope === 'INTERNATIONAL' ? 'International' : event.region}</p>
+    <p>Status: ${event.status}</p><p>Date: D${event.startDay} - D${event.endDay}</p>
+    <h3>Invited Teams</h3>
+    <p><strong>Accepted:</strong> ${(event.invitedAccepted || []).map(teamName).join(', ') || 'None'}</p>
+    <p><strong>Declined:</strong> ${(event.invitedDeclined || []).map(teamName).join(', ') || 'None'}</p>
+    <h3>Qualifier</h3>
+    <p>Participants: ${(event.qualifierParticipants || []).length}</p>
+    <ul>${(event.qualifiersBracket || []).map((x) => `<li>${teamName(x.tid)} - ${x.status}</li>`).join('') || '<li>Not started</li>'}</ul>
+    <h3>Main Event Placements</h3>
+    <ol>${(event.placements || []).map((pl) => {
+      const pts = (event.pointsAwarded || []).find((z) => z.tid === pl.tid)?.points || 0;
+      const prize = (event.payouts || []).find((z) => z.tid === pl.tid)?.amount || 0;
+      return `<li>${teamName(pl.tid)} (${pts} pts, ${formatMoney(prize)})</li>`;
+    }).join('') || '<li>Not started</li>'}</ol>
+    <p><a href="#/matches?year=${year}">Back to Tournaments</a></p>`;
+    return;
   }
-  if (!match) return (main.innerHTML = '<p>No user matches.</p>');
 
-  const team = getUserTeam(state);
-  const start = starters(state, team.tid);
-  const lineupWarning = start.length < 5 ? '<p class="error">Need 5 starters before match can begin.</p>' : '';
-  const live = match.live;
-  const map = live?.maps?.[live.mapIndex];
-  const scoreLine = map ? `${map.score[match.homeTid]} - ${map.score[match.awayTid]}` : (match.result?.summary || '-');
-  const playerName = (pid) => state.players.find((p) => p.pid === pid)?.name || pid;
-
-  const timeline = (map?.rounds || []).slice(-12).map((r) => {
-    const fk = r.firstKill ? `FK:${playerName(r.firstKill.pid)}` : '';
-    const clutch = r.clutches?.length ? `Clutch x${r.clutches.length}` : '';
-    return `<div>R${r.roundIndex} ${r.winType.toUpperCase()} ${r.plant ? '🌱' : ''}${r.defuse ? '🧰' : ''} | ${r.eco[match.homeTid].buyType}/${r.eco[match.awayTid].buyType} | ${fk} ${clutch}</div>`;
-  }).join('') || '<p>No rounds yet.</p>';
-
-  const keyMoments = (map?.keyMoments || []).slice(0, 12).map((m) => {
-    if (m.type === 'timeout') return `<li>R${m.roundIndex}: Timeout by ${state.teams.find((t) => t.tid === m.byTid)?.abbrev || m.byTid} (${m.reason})</li>`;
-    if (m.type === 'firstKill') return `<li>R${m.roundIndex}: First kill by ${playerName(m.pid)}</li>`;
-    if (m.type === 'clutch') return `<li>R${m.roundIndex}: ${playerName(m.pid)} won 1v${m.vs}</li>`;
-    if (m.type === 'multikill') return `<li>R${m.roundIndex}: ${playerName(m.pid)} posted ${m.count}K</li>`;
-    return `<li>${m.type}</li>`;
-  }).join('') || '<li>No key moments yet.</li>';
-
-  const econRows = (map?.rounds || []).slice(-8).map((r) => `<tr><td>R${r.roundIndex}</td><td>${r.eco[match.homeTid].avgCreditsBeforeBuy} (${r.eco[match.homeTid].buyType})</td><td>${r.eco[match.awayTid].avgCreditsBeforeBuy} (${r.eco[match.awayTid].buyType})</td></tr>`).join('');
-  const mapOptions = ['series'].concat((match.result?.maps || []).map((_, i) => String(i)));
-  const selected = new URLSearchParams(window.location.hash.split('?')[1] || '').get('box') || 'series';
-  const selectedMap = selected === 'series' ? null : (match.result?.maps || [])[Number(selected)];
-
-  const aggregateByTeam = (maps, tid) => {
-    const rows = {};
-    for (const m of maps) {
-      for (const p of m.playerStats?.[tid] || []) {
-        if (!rows[p.pid]) rows[p.pid] = { name: p.name, agent: p.agent, kills: 0, deaths: 0, assists: 0, fk: 0, fd: 0, multi: { 2: 0, 3: 0, 4: 0, 5: 0 }, rating: 0, maps: 0 };
-        rows[p.pid].kills += p.kills; rows[p.pid].deaths += p.deaths; rows[p.pid].assists += p.assists;
-        rows[p.pid].fk += p.firstKills || 0; rows[p.pid].fd += p.firstDeaths || 0;
-        rows[p.pid].rating += p.rating || 0; rows[p.pid].maps += 1;
-        for (const r of m.rounds || []) {
-          const cnt = r.killsByPlayer?.[p.pid] || 0;
-          if (cnt >= 2) rows[p.pid].multi[Math.min(5, cnt)] += 1;
-        }
-      }
-    }
-    return Object.values(rows).map((r) => ({ ...r, rating: (r.rating / Math.max(1, r.maps)).toFixed(2) })).sort((a, b) => b.kills - a.kills);
-  };
-  const boxMaps = selectedMap ? [selectedMap] : (match.result?.maps || []);
-  const homeBoxRows = aggregateByTeam(boxMaps, match.homeTid);
-  const awayBoxRows = aggregateByTeam(boxMaps, match.awayTid);
-  const homeName = state.teams.find((t) => t.tid === match.homeTid)?.name || 'Home';
-  const awayName = state.teams.find((t) => t.tid === match.awayTid)?.name || 'Away';
-
-  main.innerHTML = `<h1>Match View</h1>${lineupWarning}
-  <p>Status: ${match.status}</p>
-  <p>Current map: ${map?.mapName || 'Completed'}</p>
-  <p>Series: ${live ? `${live.seriesScore[match.homeTid]}-${live.seriesScore[match.awayTid]}` : match.result?.summary || '-'}</p>
-  <p>Round score: ${scoreLine}</p>
-  <p>Starters: ${start.map((p) => `${p.name} (${p.currentRole})`).join(', ') || 'None'}</p>
-  ${isHistory ? '<p><em>Archived match (read-only)</em></p>' : '<div class="top-actions"><button id="r1">Play Next Round</button><button id="r3">Play Next 3 Rounds</button><button id="half">Sim to Half</button><button id="map">Sim Map</button><button id="series">Sim Series</button></div>'}
-  <h3>Round Timeline</h3><div class="card">${timeline}</div>
-  <h3>Key Moments</h3><ul>${keyMoments}</ul>
-  <h3>Economy Panel</h3><table><tr><th>Round</th><th>Home</th><th>Away</th></tr>${econRows || '<tr><td colspan="3">No data</td></tr>'}</table>
-  <h3>Box Score</h3><label>View <select id="box-select">${mapOptions.map((o, i) => `<option value="${o}" ${selected===o?'selected':''}>${o==='series'?'Series':`Map ${i}`}</option>`).join('')}</select></label>
-  <h4>${homeName} ${selectedMap ? `${selectedMap.finalScore?.[match.homeTid] ?? 0}` : `${match.result?.seriesScore?.[match.homeTid] ?? 0}`}</h4>
-  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/Ace</th><th>Rating</th></tr>${homeBoxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
-  <h4>${awayName} ${selectedMap ? `${selectedMap.finalScore?.[match.awayTid] ?? 0}` : `${match.result?.seriesScore?.[match.awayTid] ?? 0}`}</h4>
-  <table><tr><th>Player</th><th>Agent</th><th>K</th><th>D</th><th>A</th><th>FK</th><th>FD</th><th>2K/3K/4K/Ace</th><th>Rating</th></tr>${awayBoxRows.map((r)=>`<tr><td>${r.name}</td><td>${r.agent||'-'}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${r.fk}</td><td>${r.fd}</td><td>${r.multi[2]}/${r.multi[3]}/${r.multi[4]}/${r.multi[5]}</td><td>${r.rating}</td></tr>`).join('') || '<tr><td colspan="9">No final stats yet.</td></tr>'}</table>
-  <pre>${(live?.log || []).slice(-16).join('\n')}</pre>`;
-
-  const canPlay = !isHistory && start.length >= 5;
-  ['#r1', '#r3', '#half', '#map', '#series'].forEach((idBtn) => { const el = main.querySelector(idBtn); if (el && !canPlay) el.disabled = true; });
-  const refresh = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
-  main.querySelector('#box-select').onchange = (e) => { const base = `#/match?id=${match.mid}&box=${e.target.value}${isHistory ? `&season=${requestedSeason}` : ''}`; window.location.hash = base; };
-  if (!isHistory) {
-    main.querySelector('#r1').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 1)); refresh(); };
-    main.querySelector('#r3').onclick = () => { mutateWorld((w) => playMatchRounds(w, match.mid, 3)); refresh(); };
-    main.querySelector('#half').onclick = () => { mutateWorld((w) => playMatchToHalf(w, match.mid)); refresh(); };
-    main.querySelector('#map').onclick = () => { mutateWorld((w) => playMatchMap(w, match.mid)); refresh(); };
-    main.querySelector('#series').onclick = () => { mutateWorld((w) => playMatchSeries(w, match.mid)); refresh(); };
-  }
+  main.innerHTML = '<h1>Match View</h1><p>Series-level old match view is deprecated. Use Tournaments tab.</p>';
 }
 
 export function renderStrategy(main, state) {
@@ -434,8 +401,8 @@ export function renderSponsors(main, state) {
 
 
 export function renderTeams(main, state) {
-  const rows = state.teams.map((team) => `<tr><td><a href="#/team?id=${team.tid}">${team.name}</a></td><td>${team.region}</td><td>${recordFromSchedule(state, team.tid)}</td></tr>`).join('');
-  main.innerHTML = `<h1>Teams</h1><table><tr><th>Team</th><th>Region</th><th>W-L</th></tr>${rows}</table>`;
+  const rows = state.teams.map((team) => `<tr><td><a href="#/team?id=${team.tid}">${team.name}</a></td><td>${team.region}</td><td>${team.tier}</td><td>${Math.round(team.elo || 0)}</td><td>${team.circuitPoints || 0}</td><td>${formatMoney(team.cash || 0)}</td><td>${team.wins || 0}-${team.losses || 0}</td></tr>`).join('');
+  main.innerHTML = `<h1>Teams</h1><table><tr><th>Team</th><th>Region</th><th>Tier</th><th>ELO</th><th>Points</th><th>Cash</th><th>W-L</th></tr>${rows}</table>`;
 }
 
 export function renderTeamDetail(main, state, id) {
@@ -446,15 +413,18 @@ export function renderTeamDetail(main, state, id) {
   const startersRows = starters(state, team.tid).map((p) => `<li><a href="#/player?id=${p.pid}">${p.name}</a> (${p.currentRole})</li>`).join('');
   const benchRows = bench(state, team.tid).map((p) => `<li><a href="#/player?id=${p.pid}">${p.name}</a> (${p.currentRole})</li>`).join('');
   const gmLinks = state.meta.mode === 'GM' && state.userTid === team.tid ? '<a href="#/finances">View Finances</a> • ' : '';
-  main.innerHTML = `<h1>${team.name}</h1><p>${team.region} • Record ${recordFromSchedule(state, team.tid)}</p>
+  const events = (state.eventsByYear?.[state.meta.year] || []).filter((e) => (e.mainTeams || []).includes(team.tid) || (e.qualifierParticipants || []).includes(team.tid));
+  main.innerHTML = `<h1>${team.name}</h1><p>${team.region} • ${team.tier} • Record ${team.wins || 0}-${team.losses || 0}</p><p>ELO ${Math.round(team.elo || 0)} • Circuit Points ${team.circuitPoints || 0} • Cash ${formatMoney(team.cash || 0)}</p>
   <p>Head Coach: ${coach ? `<a href="#/coach?id=${coach.cid}">${coach.profile.name}</a>` : 'None'}</p>
   <h3>Starters</h3><ul>${startersRows || '<li>None</li>'}</ul>
   <h3>Bench</h3><ul>${benchRows || '<li>None</li>'}</ul>
-  <p>Quick links: <a href="#/players">View Players</a> • ${gmLinks}<a href="#/matches">View Schedule</a></p>`;
+  <h3>Events This Year</h3><ul>${events.map((e) => `<li>${e.name} - ${e.status}</li>`).join('') || '<li>No events played yet.</li>'}</ul>
+  <p>Quick links: <a href="#/players">View Players</a> • ${gmLinks}<a href="#/matches">View Tournaments</a></p>`;
 }
 
 export function renderStats(main, state) {
   const season = String(state.meta.year);
+  const teamRows = state.teams.slice().sort((a, b) => (b.circuitPoints || 0) - (a.circuitPoints || 0) || (b.elo || 0) - (a.elo || 0));
   const rows = state.players.map((p) => {
     const st = p.seasonStats?.[season] || { kills: 0, deaths: 0, assists: 0, mapsPlayed: 0 };
     const team = p.tid === null ? null : state.teams.find((t) => t.tid === p.tid);
@@ -470,7 +440,7 @@ export function renderStats(main, state) {
     };
   }).sort((a, b) => (b.kills - a.kills) || (a.deaths - b.deaths));
 
-  main.innerHTML = `<h1>Stats</h1><h3>Season ${season} - Kills Leaderboard</h3><table><tr><th>Rank</th><th>Player</th><th>Team</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Maps Played</th></tr>${rows.map((r, idx) => `<tr><td>${idx + 1}</td><td><a href="#/player?id=${r.pid}">${r.name}</a></td><td>${r.team}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${Number(r.kd).toFixed(2)}</td><td>${r.mapsPlayed}</td></tr>`).join('')}</table>`;
+  main.innerHTML = `<h1>Stats</h1><h3>Rankings</h3><table><tr><th>#</th><th>Team</th><th>Region</th><th>ELO</th><th>Circuit Points</th><th>InviteScore</th><th>Last Event</th></tr>${teamRows.map((t, idx) => `<tr><td>${idx + 1}</td><td><a href="#/team?id=${t.tid}">${t.name}</a></td><td>${t.region}</td><td>${Math.round(t.elo || 0)}</td><td>${t.circuitPoints || 0}</td><td>${Math.round((t.elo || 0) * 0.6 + (t.circuitPoints || 0) * 0.4)}</td><td>${t.lastEventPlayed || '-'}</td></tr>`).join('')}</table><h3>Season ${season} - Kills Leaderboard</h3><table><tr><th>Rank</th><th>Player</th><th>Team</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Maps Played</th></tr>${rows.map((r, idx) => `<tr><td>${idx + 1}</td><td><a href="#/player?id=${r.pid}">${r.name}</a></td><td>${r.team}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${Number(r.kd).toFixed(2)}</td><td>${r.mapsPlayed}</td></tr>`).join('')}</table>`;
 }
 
 export function renderPlayerDetail(main, state, id) {

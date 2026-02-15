@@ -24,7 +24,8 @@ import {
   renderStaff,
   renderStrategy,
   simulateNextAction,
-  simulateWeekAction
+  simulateWeekAction,
+  simulateTournamentAction
 } from './ui/pages/career.js';
 
 const app = document.getElementById('app');
@@ -57,7 +58,7 @@ function renderCareer(path, params) {
     if (route === 'player') return renderPlayerDetail(main, state, params.get('id'));
     if (route === 'coach') return renderCoachDetail(main, state, params.get('id'));
     main.innerHTML = '<h1>Not Found</h1>';
-  }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction }, getLayoutBadges(state));
+  }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction, onSimTournament: simulateTournamentAction }, getLayoutBadges(state));
 }
 
 function renderApp() {

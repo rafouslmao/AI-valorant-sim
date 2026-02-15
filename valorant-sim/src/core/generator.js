@@ -4,6 +4,7 @@ import { randInt, uid, weightedPick } from './utils.js';
 
 const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES', 'KR'];
 const coachStyles = ['Structured', 'Loose', 'Reactive', 'Prep-heavy'];
+const T2_REGIONS = ['Americas', 'EMEA', 'Pacific', 'China'];
 
 function hashNum(input) {
   let h = 2166136261;
@@ -117,9 +118,15 @@ function coreCoachRatings(seedKey) {
 
 function slider(seed) { return Number((((seed % 201) - 100) / 100).toFixed(2)); }
 
+function randomCoachIgn() {
+  const p1 = ['Ace', 'Veto', 'Nova', 'Raven', 'Echo', 'Luma', 'Ghost', 'Hex', 'Pulse', 'Cipher'];
+  const p2 = ['Mind', 'Craft', 'Prep', 'Call', 'Book', 'Core', 'Shift', 'Flow', 'Forge', 'Zen'];
+  return `${p1[randInt(0, p1.length - 1)]}${p2[randInt(0, p2.length - 1)]}${randInt(10, 99)}`;
+}
+
 export function createCoach(tid = null, role = 'Head Coach', forcedName) {
-  const base = forcedName || `Coach ${uid('n')}`;
-  const h = hashNum(base + tid);
+  const base = forcedName || randomCoachIgn();
+  const h = hashNum(base + tid + role);
   return {
     cid: uid('c'), tid, staffRole: role, salary: seededRange(h * 3, 30000, 100000),
     profile: { name: base, age: seededRange(h * 5, 29, 58), nationality: nationalities[h % nationalities.length], styleTag: coachStyles[h % coachStyles.length] },
@@ -148,35 +155,53 @@ function defaultStrategy() {
   };
 }
 
-function createTeam(seedTeam, tid) {
-  const h = hashNum(seedTeam.name);
+function createTeam(seedTeam, tid, tier = 'Tier 1') {
+  const h = hashNum(seedTeam.name + tier);
+  const yearlyBudget = tier === 'Tier 1' ? 700_000 + seededRange(h * 2, 0, 400_000) : 180_000 + seededRange(h * 2, 0, 90_000);
+  const cash = tier === 'Tier 1' ? 650_000 + seededRange(h * 3, 0, 300_000) : 120_000 + seededRange(h * 3, 0, 70_000);
+  const elo = tier === 'Tier 1' ? seededRange(h * 17, 1450, 1750) : seededRange(h * 17, 1150, 1400);
   return {
     tid,
     name: seedTeam.name,
     abbrev: seedTeam.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase(),
     region: seedTeam.region,
-    tier: 'Tier 1',
-    budget: 600_000 + seededRange(h * 2, 0, 300_000), cash: 600_000 + seededRange(h * 3, 0, 250_000), revenue: 0, expenses: 0,
-    teamReputation: seededRange(h * 5, 45, 92), recentPerformanceScore: seededRange(h * 7, 40, 80), facilitiesLevel: 50, financialStability: 60, coachQuality: 60, rosterStrength: 60,
-    wageBudget: seededRange(h * 11, 280_000, 420_000),
+    tier,
+    yearlyBudget,
+    budget: yearlyBudget,
+    cash,
+    revenue: 0,
+    expenses: 0,
+    expensesTravel: 0,
+    expensesSalaries: 0,
+    winnings: 0,
+    teamReputation: seededRange(h * 5, tier === 'Tier 1' ? 45 : 25, tier === 'Tier 1' ? 92 : 58),
+    recentPerformanceScore: seededRange(h * 7, 40, 80),
+    facilitiesLevel: 50,
+    financialStability: 60,
+    coachQuality: 60,
+    rosterStrength: 60,
+    wageBudget: seededRange(h * 11, tier === 'Tier 1' ? 280_000 : 90_000, tier === 'Tier 1' ? 420_000 : 180_000),
     monthlyLedger: [], facilities: initFacilities(), mapRatings: mapRatings(seedTeam.name), strategy: defaultStrategy(),
     practicePlan: { focus: PRACTICE_FOCUS[0], intensity: 'normal' },
     wins: 0, losses: 0, chemistry: 50, morale: 50, fatigue: 0,
     headCoachId: null,
-    starters: []
+    starters: [],
+    elo,
+    circuitPoints: 0,
+    eventsPlayedThisYear: 0,
+    lastEventPlayed: null
   };
 }
 
-function createSchedule(teams, year) {
-  const matches = [];
-  let week = 1;
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      matches.push({ mid: uid('m'), week, season: year, homeTid: teams[i].tid, awayTid: teams[j].tid, status: 'scheduled', played: false, result: null, live: null });
-      week = week >= 16 ? 1 : week + 1;
+function createTier2Teams(startTid) {
+  const teams = [];
+  let tid = startTid;
+  for (const region of T2_REGIONS) {
+    for (let i = 1; i <= 24; i++) {
+      teams.push(createTeam({ name: `${region} Contenders ${i}`, region }, tid++, 'Tier 2'));
     }
   }
-  return matches.sort((a, b) => a.week - b.week);
+  return teams;
 }
 
 function initialSponsorOffers(teams) {
@@ -198,41 +223,51 @@ function initialSponsorOffers(teams) {
 
 export function generateWorld({ userTid, mode, saveName, userName }) {
   const year = 2027;
-  const teams = REAL_TEAM_DATABASE.map((t, tid) => createTeam(t, tid));
+  const tier1Teams = REAL_TEAM_DATABASE.map((t, tid) => createTeam(t, tid, 'Tier 1'));
+  const tier2Teams = createTier2Teams(tier1Teams.length);
+  const teams = [...tier1Teams, ...tier2Teams];
   const players = REAL_IMPORTED_PLAYERS.map((p) => createImportedPlayer(p));
   const coaches = [];
 
   for (const team of teams) {
+    const assignCoach = team.tier === 'Tier 1' || Math.random() < 0.55;
+    if (!assignCoach) continue;
     if (mode === 'Coach' && team.tid === userTid) {
-      const userCoach = createCoach(team.tid, 'Head Coach', userName);
+      const userCoach = createCoach(team.tid, 'Head Coach', userName || randomCoachIgn());
       coaches.push(userCoach);
       team.headCoachId = userCoach.cid;
     } else {
-      const hc = createCoach(team.tid, 'Head Coach', `Coach ${team.name}`);
+      const hc = createCoach(team.tid, 'Head Coach');
       coaches.push(hc);
       team.headCoachId = hc.cid;
     }
   }
 
-  for (const team of teams) {
+  // coach market pool to prevent shortages
+  for (let i = 0; i < 180; i++) coaches.push(createCoach(null, 'Head Coach'));
+
+  for (const team of tier1Teams) {
     const teamPlayers = players.filter((p) => p.tid === team.tid);
     team.starters = teamPlayers.filter((p) => p.isStarter).slice(0, 5).map((p) => p.pid);
   }
 
   return {
     rules: { allowDuplicateAgentsSameTeam: true },
-    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, mode, saveName, userName, godMode: true, createdAt: Date.now() },
+    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, day: 1, mode, saveName, userName, godMode: true, createdAt: Date.now(), initializedYear: null },
     userTid,
     teams,
     players,
     coaches,
     strategy: { maps: Object.fromEntries(MAP_POOL.map((m) => [m.id, { defaultCompId: '', comps: [] }])), global: { defaultCompId: '', comps: [] } },
-    schedule: createSchedule(teams, year),
+    schedule: [],
+    eventsByYear: {},
+    eventLog: [],
+    currentEventId: null,
     transactions: [],
     recommendations: [],
     negotiations: {},
     messages: [],
     facilityRequests: [],
-    sponsors: { active: [], offers: initialSponsorOffers(teams), history: [] }
+    sponsors: { active: [], offers: initialSponsorOffers(tier1Teams), history: [] }
   };
 }

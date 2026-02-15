@@ -1,16 +1,393 @@
-import { PRACTICE_FOCUS } from './constants.js';
+import { AGENT_ROLES, PRACTICE_FOCUS } from './constants.js';
 import { clamp, uid } from './utils.js';
-import { computePlayerOverall } from './generator.js';
-import { initializeLiveSeries, playLiveRounds, simLiveMap, simLiveSeries, simLiveToHalf, simulateBo3Series } from './matchSimBo3.js';
+import { computePlayerOverall, createCoach } from './generator.js';
 import { applyWeeklyTraining } from './training.js';
-import { aiResolveFreeAgency } from './contracts.js';
 import { addMessage } from './messages.js';
-import { maybeGenerateSponsorOffers, settleSponsorDeadlines, updateSponsorProgress } from './sponsors.js';
+
+const REGION_MAP = ['Americas', 'EMEA', 'Pacific', 'China'];
 
 function upgradeCost(facility) {
   return Math.round(facility.baseCost * ((facility.level + 1) ** 1.5));
 }
 
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function rand(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+
+function regionForNationality(teamRegion) {
+  const pools = {
+    Americas: ['United_States', 'Canada', 'Brazil', 'Argentina', 'Mexico', 'Chile'],
+    EMEA: ['Turkey', 'France', 'Germany', 'Poland', 'Spain', 'United_Kingdom'],
+    Pacific: ['South_Korea', 'Japan', 'Thailand', 'Indonesia', 'Philippines', 'Singapore'],
+    China: ['China', 'Taiwan', 'Hong_Kong']
+  };
+  return pick(pools[teamRegion] || pools.Americas);
+}
+
+function buildRoleSkills(primaryRole) {
+  return { Duelist: rand(35, 65), Initiator: rand(35, 65), Controller: rand(35, 65), Sentinel: rand(35, 65), Flex: rand(35, 65), [primaryRole]: rand(65, 90) };
+}
+
+function buildAgentPool(role) {
+  const affinities = {};
+  const slots = role === 'Flex' ? ['Duelist', 'Initiator', 'Controller', 'Sentinel'] : [role];
+  for (const r of slots) {
+    const agents = AGENT_ROLES[r] || AGENT_ROLES.Initiator;
+    affinities[pick(agents)] = rand(62, 93);
+    affinities[pick(agents)] = rand(55, 88);
+  }
+  return { primaryRole: role.toLowerCase(), affinities };
+}
+
+function createTier2Player(team, role = 'Flex') {
+  const seed = uid('t2p');
+  const p = {
+    pid: uid('p'),
+    tid: team.tid,
+    name: `IGN_${seed.slice(-6)}`,
+    age: rand(17, 24),
+    nationality: regionForNationality(team.region),
+    imageURL: '',
+    salary: rand(18000, 52000),
+    reputation: rand(25, 58),
+    ambition: rand(25, 90), loyalty: rand(25, 90), greed: rand(20, 95), playtimeDesire: rand(30, 95),
+    preferredRole: role,
+    roles: role === 'Flex' ? ['Flex', 'Initiator'] : [role, 'Flex'],
+    currentRole: role,
+    secondaryRoleTag: 'None',
+    attrs: {
+      aim: rand(45, 78), utility: rand(45, 78), clutch: rand(40, 74), mental: rand(45, 76), teamwork: rand(48, 78), decisionMaking: rand(42, 75)
+    },
+    roleSkills: buildRoleSkills(role),
+    agentPool: buildAgentPool(role),
+    trainingPlan: { primaryFocus: role, secondaryFocus: 'None', intensity: 'normal' },
+    currentContract: { salaryPerYear: rand(18000, 52000), yearsRemaining: rand(1, 2), signedWithTid: team.tid, buyoutClause: rand(45000, 110000), rolePromise: 'starter', signingBonus: rand(2000, 10000) },
+    isStarter: true,
+    history: [],
+    seasonStats: {}
+  };
+  p.ovr = computePlayerOverall(p);
+  return p;
+}
+
+function ensureCoachCoverage(state) {
+  const freeCoaches = state.coaches.filter((c) => c.tid == null);
+  if (freeCoaches.length < 24) {
+    for (let i = 0; i < 40; i++) state.coaches.push(createCoach(null, 'Head Coach'));
+  }
+}
+
+function assignCoachIfMissing(state, team) {
+  if (team.headCoachId) return;
+  ensureCoachCoverage(state);
+  const coach = state.coaches.find((c) => c.tid == null);
+  if (!coach) return;
+  coach.tid = team.tid;
+  team.headCoachId = coach.cid;
+}
+
+function fillTier2Rosters(state) {
+  const signLog = [];
+  for (const team of state.teams.filter((t) => t.tier === 'Tier 2')) {
+    assignCoachIfMissing(state, team);
+    const roster = state.players.filter((p) => p.tid === team.tid);
+    const needs = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex', 'Flex'];
+    for (const role of needs.slice(roster.length)) {
+      const freeByRole = state.players.find((p) => p.tid == null && (p.currentRole === role || p.roles?.includes(role) || role === 'Flex'));
+      const player = freeByRole || createTier2Player(team, role);
+      if (!freeByRole) state.players.push(player);
+      player.tid = team.tid;
+      player.currentRole = role;
+      player.isStarter = true;
+      player.currentContract = { ...(player.currentContract || {}), signedWithTid: team.tid, yearsRemaining: rand(1, 2), salaryPerYear: player.salary || rand(18000, 52000) };
+      player.history = player.history || [];
+      player.history.push(`Signed by ${team.name} (Tier 2 autofill)`);
+      signLog.push({ team: team.name, player: player.name, role });
+    }
+    const teamPlayers = state.players.filter((p) => p.tid === team.tid).sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
+    team.starters = teamPlayers.slice(0, 5).map((p) => p.pid);
+  }
+  if (signLog.length) {
+    state.eventLog = state.eventLog || [];
+    state.eventLog.push({ id: uid('elog'), type: 'tier2_roster_fill', year: state.meta.year, day: state.meta.day || 1, details: signLog });
+  }
+}
+
+function rankingScore(team) {
+  return (team.elo || 1200) * 0.6 + (team.circuitPoints || 0) * 4 + (team.teamReputation || 40) * 2;
+}
+
+function makePoints(mult = 1) {
+  return [100, 70, 50, 35, 24, 16, 10, 6].map((v) => Math.round(v * mult));
+}
+
+function generateYearCalendar(state, year) {
+  const events = [];
+  const pushEvent = (ev) => events.push({
+    id: uid('ev'),
+    year,
+    status: 'Upcoming',
+    phase: 'pending',
+    qualifierParticipants: [],
+    qualifiersBracket: [],
+    invitedAccepted: [],
+    invitedDeclined: [],
+    qualifiedTeams: [],
+    mainTeams: [],
+    matches: [],
+    placements: [],
+    payouts: [],
+    pointsAwarded: [],
+    ...ev
+  });
+
+  pushEvent({ name: 'VALORANT Masters 1', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 70, endDay: 85, prizePool: 1200000, pointsMultiplier: 2.2, travelCostFactor: 1.6, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 97 });
+  pushEvent({ name: 'BLAST Open', organizer: 'BLAST', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 108, endDay: 120, prizePool: 1150000, pointsMultiplier: 1.8, travelCostFactor: 1.4, inviteSlots: 10, qualSlots: 6, mainSlots: 16, prestige: 88 });
+  pushEvent({ name: 'IEM Global', organizer: 'IEM', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 145, endDay: 160, prizePool: 1050000, pointsMultiplier: 1.8, travelCostFactor: 1.5, inviteSlots: 11, qualSlots: 5, mainSlots: 16, prestige: 86 });
+  pushEvent({ name: 'EWC', organizer: 'EWC', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 188, endDay: 203, prizePool: 1800000, pointsMultiplier: 2.4, travelCostFactor: 1.7, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 99 });
+  pushEvent({ name: 'VALORANT Masters 2', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 230, endDay: 245, prizePool: 1300000, pointsMultiplier: 2.4, travelCostFactor: 1.6, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 99 });
+  pushEvent({ name: 'PGL Finals', organizer: 'PGL', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 266, endDay: 279, prizePool: 1100000, pointsMultiplier: 1.9, travelCostFactor: 1.5, inviteSlots: 10, qualSlots: 6, mainSlots: 16, prestige: 87 });
+  pushEvent({ name: 'VALORANT Champions', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 320, endDay: 343, prizePool: 2400000, pointsMultiplier: 3.2, travelCostFactor: 1.9, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 100 });
+
+  const orgs = ['FISSURE', 'PGL Challengers', 'BLAST Rising', 'Open Circuit'];
+  let d = 20;
+  for (const r of REGION_MAP) {
+    for (let i = 0; i < 4; i++) {
+      pushEvent({
+        name: `${r} ${orgs[(i + r.length) % orgs.length]} ${i + 1}`,
+        organizer: orgs[(i + r.length) % orgs.length],
+        tier: 'A',
+        regionScope: 'REGIONAL',
+        region: r,
+        startDay: d,
+        endDay: d + 8,
+        prizePool: rand(90000, 420000),
+        pointsMultiplier: 1,
+        travelCostFactor: 0.9,
+        inviteSlots: rand(3, 8),
+        qualSlots: rand(5, 10),
+        mainSlots: 8,
+        prestige: rand(45, 72)
+      });
+      d += rand(16, 30);
+    }
+  }
+
+  return events.sort((a, b) => a.startDay - b.startDay);
+}
+
+function attendanceScore(team, event, state) {
+  const prestige = event.prestige;
+  const prize = Math.log10(event.prizePool) * 12;
+  const qualValue = event.tier === 'S' ? 20 : 6;
+  const needPoints = Math.max(0, 140 - (team.circuitPoints || 0)) / 4;
+  const orgRep = team.teamReputation || 50;
+  const travel = event.regionScope === 'INTERNATIONAL' && team.region !== event.region ? 16 * event.travelCostFactor : 4 * event.travelCostFactor;
+  const fatigue = team.fatigue || 0;
+  const conflict = state.eventsByYear[state.meta.year].some((e) => e.id !== event.id && (e.status === 'Qualifiers' || e.status === 'Main Event') && e.mainTeams.includes(team.tid)) ? 45 : 0;
+  return prestige * 0.55 + prize + qualValue + needPoints + orgRep * 0.22 - travel - fatigue * 0.25 - conflict;
+}
+
+function setupEventParticipation(state, event) {
+  const eligible = state.teams.filter((t) => event.regionScope === 'INTERNATIONAL' || t.region === event.region);
+  const ranked = [...eligible].sort((a, b) => rankingScore(b) - rankingScore(a));
+  const invited = ranked.slice(0, event.inviteSlots);
+
+  for (const team of invited) {
+    const score = attendanceScore(team, event, state);
+    const threshold = event.tier === 'S' ? 35 : 55;
+    if (score > threshold) event.invitedAccepted.push(team.tid); else event.invitedDeclined.push(team.tid);
+  }
+
+  let inviteCursor = event.inviteSlots;
+  while (event.invitedAccepted.length < event.inviteSlots && inviteCursor < ranked.length) {
+    const replacement = ranked[inviteCursor++];
+    event.invitedAccepted.push(replacement.tid);
+  }
+
+  const optInPool = ranked.filter((t) => !event.invitedAccepted.includes(t.tid));
+  for (const team of optInPool) {
+    if (attendanceScore(team, event, state) > (event.tier === 'S' ? 25 : 45)) event.qualifierParticipants.push(team.tid);
+  }
+
+  const maxQual = Math.max(event.qualSlots * 3, event.qualSlots + 2);
+  event.qualifierParticipants = event.qualifierParticipants.slice(0, maxQual);
+  event.status = 'Upcoming';
+}
+
+function runQualifier(event, state) {
+  const entrants = [...event.qualifierParticipants];
+  const scored = entrants.map((tid) => {
+    const t = state.teams.find((x) => x.tid === tid);
+    return { tid, score: rankingScore(t) + rand(-80, 80) };
+  }).sort((a, b) => b.score - a.score);
+  event.qualifiedTeams = scored.slice(0, event.qualSlots).map((x) => x.tid);
+  event.qualifiersBracket = scored.map((x, idx) => ({ seed: idx + 1, tid: x.tid, status: idx < event.qualSlots ? 'Qualified' : 'Eliminated' }));
+  event.status = 'Qualifiers';
+  event.phase = 'qualifiers_done';
+}
+
+function runMainEvent(event, state) {
+  const teams = [...event.invitedAccepted, ...event.qualifiedTeams].slice(0, event.mainSlots);
+  event.mainTeams = teams;
+  const ranked = teams.map((tid) => {
+    const t = state.teams.find((x) => x.tid === tid);
+    return { tid, score: rankingScore(t) + rand(-110, 110) };
+  }).sort((a, b) => b.score - a.score);
+
+  const points = makePoints(event.pointsMultiplier);
+  let remainingPrize = event.prizePool;
+  const payoutCurve = [0.34, 0.2, 0.12, 0.08, 0.06, 0.05, 0.04, 0.03];
+  event.placements = [];
+  event.payouts = [];
+  event.pointsAwarded = [];
+
+  ranked.forEach((r, i) => {
+    const team = state.teams.find((t) => t.tid === r.tid);
+    const place = i + 1;
+    const payout = i < payoutCurve.length ? Math.round(event.prizePool * payoutCurve[i]) : 0;
+    remainingPrize -= payout;
+    const pts = points[i] || 2;
+    team.circuitPoints = (team.circuitPoints || 0) + pts;
+    team.cash += payout;
+    team.winnings = (team.winnings || 0) + payout;
+    team.eventsPlayedThisYear = (team.eventsPlayedThisYear || 0) + 1;
+    team.lastEventPlayed = event.name;
+    team.elo = clamp(Math.round((team.elo || 1200) + (i < 4 ? 20 : -8) + rand(-6, 8)), 900, 2400);
+    event.placements.push({ place, tid: r.tid });
+    event.payouts.push({ tid: r.tid, amount: payout });
+    event.pointsAwarded.push({ tid: r.tid, points: pts });
+  });
+
+  if (remainingPrize > 0 && ranked[0]) {
+    const winner = state.teams.find((t) => t.tid === ranked[0].tid);
+    winner.cash += remainingPrize;
+    winner.winnings += remainingPrize;
+    const p = event.payouts.find((x) => x.tid === winner.tid);
+    p.amount += remainingPrize;
+  }
+
+  event.status = 'Finished';
+  event.phase = 'finished';
+  event.endDay = Math.max(event.endDay, state.meta.day);
+  state.eventLog.push({ id: uid('elog'), year: state.meta.year, day: state.meta.day, type: 'event_finished', eventId: event.id, name: event.name });
+}
+
+function chargeTravel(state, event) {
+  const tids = [...new Set([...event.invitedAccepted, ...event.qualifierParticipants])];
+  for (const tid of tids) {
+    const team = state.teams.find((t) => t.tid === tid);
+    if (!team) continue;
+    const travel = Math.round((event.regionScope === 'INTERNATIONAL' ? 18000 : 7000) * event.travelCostFactor * (team.tier === 'Tier 2' ? 0.7 : 1));
+    team.cash -= travel;
+    team.expensesTravel = (team.expensesTravel || 0) + travel;
+  }
+}
+
+function ensureYearSetup(state) {
+  const year = state.meta.year;
+  if (state.meta.initializedYear === year && state.eventsByYear?.[year]?.length) return;
+  fillTier2Rosters(state);
+  state.eventsByYear = state.eventsByYear || {};
+  state.eventsByYear[year] = generateYearCalendar(state, year);
+  for (const e of state.eventsByYear[year]) setupEventParticipation(state, e);
+  state.meta.initializedYear = year;
+  state.meta.day = 1;
+  state.currentEventId = null;
+}
+
+function getYearEvents(state) {
+  ensureYearSetup(state);
+  return state.eventsByYear[state.meta.year] || [];
+}
+
+function activeEvent(state) {
+  const events = getYearEvents(state);
+  return events.find((e) => e.id === state.currentEventId) || events.find((e) => e.status === 'Qualifiers' || e.status === 'Main Event');
+}
+
+function advanceYearIfDone(state) {
+  const events = getYearEvents(state);
+  if (events.some((e) => e.status !== 'Finished')) return false;
+  state.meta.year += 1;
+  state.meta.week = 1;
+  state.meta.day = 1;
+  state.meta.initializedYear = null;
+  state.currentEventId = null;
+  for (const t of state.teams) {
+    t.eventsPlayedThisYear = 0;
+    t.winnings = 0;
+    t.expensesTravel = 0;
+    t.expensesSalaries = 0;
+    t.yearlyBudget = Math.round(t.yearlyBudget * (0.95 + Math.random() * 0.2));
+  }
+  ensureYearSetup(state);
+  return true;
+}
+
+export function advanceTimeToNextPhase(state) {
+  ensureYearSetup(state);
+  const current = activeEvent(state);
+  if (current) {
+    if (current.phase === 'pending') {
+      state.meta.day = Math.max(state.meta.day, current.startDay);
+      chargeTravel(state, current);
+      runQualifier(current, state);
+      current.status = 'Qualifiers';
+      return current;
+    }
+    if (current.phase === 'qualifiers_done') {
+      current.phase = 'main_running';
+      current.status = 'Main Event';
+      state.meta.day = Math.max(state.meta.day, current.startDay + 3);
+      runMainEvent(current, state);
+      state.currentEventId = null;
+      advanceYearIfDone(state);
+      return current;
+    }
+  }
+
+  const events = getYearEvents(state);
+  const next = events.find((e) => e.status === 'Upcoming' && e.startDay >= state.meta.day) || events.find((e) => e.status === 'Upcoming');
+  if (!next) {
+    advanceYearIfDone(state);
+    return null;
+  }
+  state.meta.day = next.startDay;
+  state.currentEventId = next.id;
+  next.phase = 'pending';
+  next.status = 'Upcoming';
+  return next;
+}
+
+export function simulateToNextTournament(state) {
+  ensureYearSetup(state);
+  const active = activeEvent(state);
+  if (active) return active;
+  const events = getYearEvents(state);
+  const next = events.find((e) => e.status === 'Upcoming');
+  if (!next) {
+    advanceYearIfDone(state);
+    return null;
+  }
+  state.meta.day = next.startDay;
+  state.currentEventId = next.id;
+  return next;
+}
+
+export function simulateCurrentTournament(state) {
+  ensureYearSetup(state);
+  const ev = activeEvent(state) || simulateToNextTournament(state);
+  if (!ev) return null;
+  while (ev.status !== 'Finished') advanceTimeToNextPhase(state);
+  return ev;
+}
+
+export function getTournamentsForYear(state, year) {
+  ensureYearSetup(state);
+  return (state.eventsByYear[year] || []).slice().sort((a, b) => a.startDay - b.startDay);
+}
+
+// legacy exports kept for compatibility
 export function computeFacilityEffects(team) {
   const f = team.facilities;
   const officeLevel = f.officeQuality.level;
@@ -39,22 +416,17 @@ export function computeFacilityEffects(team) {
   };
 }
 
-function totalFacilityMaintenance(team) {
-  return Object.values(team.facilities).reduce((sum, item) => sum + item.baseMaintenance * item.level, 0);
-}
+export function openMatch(state) { return null; }
+export function playMatchRounds(state) { return null; }
+export function playMatchToHalf(state) { return null; }
+export function playMatchMap(state) { return null; }
+export function playMatchSeries(state) { return null; }
+export function simulateNextMatchForUserTeam(state) { return advanceTimeToNextPhase(state); }
+export function simulateWeek(state) { return advanceTimeToNextPhase(state); }
 
-function computeTeamMeta(state, tid) {
-  const team = state.teams.find((t) => t.tid === tid);
-  const coach = state.coaches.find((c) => c.tid === tid && c.staffRole === 'Head Coach');
-  const roster = state.players.filter((p) => p.tid === tid).slice(0, 8);
-  const avgOvr = roster.reduce((s, p) => s + computePlayerOverall(p), 0) / Math.max(roster.length, 1);
-  team.coachQuality = coach ? Math.round((coach.ratings.prep + coach.ratings.leadership + coach.ratings.skillDevelopment) / 3) : 50;
-  team.rosterStrength = Math.round(avgOvr);
-  team.financialStability = clamp(Math.round((team.cash / Math.max(1, team.wageBudget)) * 40), 5, 95);
-  team.facilitiesLevel = Math.round(Object.values(team.facilities).reduce((s, f) => s + f.level, 0) / 30 * 100);
-}
+export function getFacilityUpgradeCost(team, key) { return upgradeCost(team.facilities[key]); }
 
-function applyPracticeAndFacilities(state, tid) {
+export function applyPracticeAndFacilities(state, tid) {
   const team = state.teams.find((t) => t.tid === tid);
   if (!team) return;
   const roster = state.players.filter((p) => p.tid === tid);
@@ -64,324 +436,13 @@ function applyPracticeAndFacilities(state, tid) {
   const iMult = intensity === 'hard' ? 1.8 : intensity === 'light' ? 0.8 : 1.2;
 
   for (const player of roster) {
-    if (PRACTICE_FOCUS.includes(focus)) {
-      player.attrs[focus] = clamp(player.attrs[focus] + (Math.random() * iMult + fx.aimGrowthBonus) * fx.practiceMultiplier, 30, 99);
-    }
+    if (PRACTICE_FOCUS.includes(focus)) player.attrs[focus] = clamp(player.attrs[focus] + (Math.random() * iMult + fx.aimGrowthBonus) * fx.practiceMultiplier, 30, 99);
     player.roleSkills[player.currentRole] = clamp((player.roleSkills[player.currentRole] ?? 35) + 0.35 * iMult, 20, 99);
     player.ovr = computePlayerOverall(player);
   }
-
-  const cost = intensity === 'hard' ? 30_000 : intensity === 'light' ? 10_000 : 20_000;
-  team.expenses += cost;
-  team.cash -= cost;
-
   applyWeeklyTraining(state, tid, fx.practiceMultiplier, 1 + fx.chemistryStability / 100);
-  computeTeamMeta(state, tid);
 }
 
-function teamRosterSize(state, tid) {
-  return state.players.filter((p) => p.tid === tid).length;
-}
-
-function ensureTeamStarters(state, tid) {
-  const team = state.teams.find((t) => t.tid === tid);
-  const roster = state.players.filter((p) => p.tid === tid);
-  if (!team || !roster.length) return;
-  const validStarters = (team.starters || []).filter((pid) => roster.some((p) => p.pid === pid));
-  const needed = 5 - validStarters.length;
-  if (needed > 0) {
-    const candidates = roster.filter((p) => !validStarters.includes(p.pid)).sort((a, b) => b.ovr - a.ovr);
-    validStarters.push(...candidates.slice(0, needed).map((p) => p.pid));
-  }
-  team.starters = validStarters.slice(0, Math.min(5, roster.length));
-}
-
-function roleNeedBonus(teamPlayers, candidate) {
-  const roleCounts = {};
-  for (const p of teamPlayers) roleCounts[p.currentRole] = (roleCounts[p.currentRole] || 0) + 1;
-  const need = Math.max(0, 2 - (roleCounts[candidate.currentRole] || 0));
-  return need * 6;
-}
-
-function signFreeAgentToTeam(state, player, team) {
-  player.tid = team.tid;
-  player.currentContract = {
-    salaryPerYear: Math.max(25_000, Math.round((player.salary || 35_000) * (0.9 + Math.random() * 0.3))),
-    yearsRemaining: 1 + Math.floor(Math.random() * 3),
-    signedWithTid: team.tid,
-    buyoutClause: Math.round((player.salary || 35_000) * 3),
-    rolePromise: 'starter',
-    signingBonus: Math.round((player.salary || 35_000) * 0.15)
-  };
-  player.history.push(`Signed by ${team.name}`);
-  state.transactions = state.transactions || [];
-  state.transactions.push({ id: uid('txn'), ts: Date.now(), type: 'aiSign', tid: team.tid, pid: player.pid, note: `${team.name} signed ${player.name}` });
-}
-
-function ensureAiRosterMinimum(state) {
-  const freeAgents = () => state.players.filter((p) => p.tid === null);
-  for (const team of state.teams) {
-    if (team.tid === state.userTid) continue;
-    let missingCount = Math.max(0, 5 - teamRosterSize(state, team.tid));
-    while (missingCount > 0) {
-      const roster = state.players.filter((p) => p.tid === team.tid);
-      const candidates = freeAgents()
-        .map((p) => {
-          const affordabilityBonus = (team.cash >= (p.salary || 35_000)) ? 8 : -30;
-          const repBonus = Math.round((p.reputation || 50) * 0.12);
-          const fitScore = p.ovr + roleNeedBonus(roster, p) + affordabilityBonus + repBonus;
-          return { p, fitScore };
-        })
-        .sort((a, b) => b.fitScore - a.fitScore);
-      const pick = candidates.find((c) => team.cash >= ((c.p.salary || 35_000) * 0.6));
-      if (!pick) break;
-      signFreeAgentToTeam(state, pick.p, team);
-      missingCount -= 1;
-    }
-    ensureTeamStarters(state, team.tid);
-  }
-}
-
-function archiveSeason(state, seasonYear) {
-  if (!state.history) state.history = { seasons: {}, matches: {} };
-  if (!state.history.seasons) state.history.seasons = {};
-  if (!state.history.matches) state.history.matches = {};
-  if (state.history.seasons[seasonYear]) return;
-
-  const seasonSchedule = state.schedule.filter((m) => m.season === seasonYear).map((m) => {
-    const copy = JSON.parse(JSON.stringify(m));
-    state.history.matches[copy.mid] = copy;
-    return {
-      matchId: copy.mid,
-      week: copy.week,
-      homeTid: copy.homeTid,
-      awayTid: copy.awayTid,
-      status: copy.status,
-      result: copy.result,
-      seriesScore: copy.result?.seriesScore || null,
-      maps: copy.result?.maps || []
-    };
-  });
-
-  const standings = state.teams.map((t) => ({ tid: t.tid, wins: t.wins || 0, losses: t.losses || 0 })).sort((a, b) => b.wins - a.wins);
-  state.history.seasons[seasonYear] = { schedule: seasonSchedule, standings };
-}
-
-function buildSeasonSchedule(teams, season) {
-  const matches = [];
-  let week = 1;
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      matches.push({ mid: uid('m'), week, season, homeTid: teams[i].tid, awayTid: teams[j].tid, status: 'scheduled', played: false, result: null, live: null });
-      week = week >= 16 ? 1 : week + 1;
-    }
-  }
-  return matches.sort((a, b) => a.week - b.week);
-}
-
-function maybeRolloverSeason(state) {
-  const currentSeason = state.meta.year;
-  const currentSeasonMatches = state.schedule.filter((m) => m.season === currentSeason);
-  const seasonDone = currentSeasonMatches.length > 0 && currentSeasonMatches.every((m) => m.status === 'final');
-  if (!seasonDone) return;
-
-  archiveSeason(state, currentSeason);
-  state.meta.year += 1;
-  state.meta.week = 1;
-  for (const t of state.teams) {
-    t.wins = 0;
-    t.losses = 0;
-  }
-  const newSeasonMatches = buildSeasonSchedule(state.teams, state.meta.year);
-  state.schedule.push(...newSeasonMatches);
-}
-
-function contractCycle(state) {
-  if (state.meta.week % 12 !== 0) return;
-  for (const p of state.players) {
-    if (!p.currentContract || p.tid === null) continue;
-    p.currentContract.yearsRemaining -= 1;
-    if (p.currentContract.yearsRemaining <= 0) {
-      p.tid = null;
-      p.history.push('Entered free agency');
-    }
-  }
-  aiResolveFreeAgency(state);
-  ensureAiRosterMinimum(state);
-}
-
-function applyMonthlyExpenses(state) {
-  if (state.meta.week % 4 !== 0) return;
-  for (const team of state.teams) {
-    const playerSalaries = state.players.filter((p) => p.tid === team.tid).reduce((sum, p) => sum + (p.currentContract?.salaryPerYear ?? p.salary), 0);
-    const staffSalaries = state.coaches.filter((c) => c.tid === team.tid).reduce((sum, c) => sum + c.salary, 0);
-    const facilityMaintenance = totalFacilityMaintenance(team);
-    const total = playerSalaries + staffSalaries + facilityMaintenance;
-    team.cash -= total;
-    team.expenses += total;
-    team.monthlyLedger.push({ week: state.meta.week, playerSalaries, staffSalaries, facilityMaintenance, total });
-    computeTeamMeta(state, team.tid);
-  }
-}
-
-function updatePlayerSeasonStats(state, match) {
-  const season = String(match.season || state.meta.year);
-  for (const map of match.result?.maps || []) {
-    for (const teamStats of Object.values(map.playerStats || {})) {
-      for (const row of teamStats) {
-        const p = state.players.find((x) => x.pid === row.pid);
-        if (!p) continue;
-        if (!p.seasonStats) p.seasonStats = {};
-        if (!p.seasonStats[season]) p.seasonStats[season] = { kills: 0, deaths: 0, assists: 0, mapsPlayed: 0, mostKillsInMap: 0 };
-        const ss = p.seasonStats[season];
-        ss.kills += row.kills || 0;
-        ss.deaths += row.deaths || 0;
-        ss.assists += row.assists || 0;
-        ss.mapsPlayed += 1;
-        ss.mostKillsInMap = Math.max(ss.mostKillsInMap, row.kills || 0);
-      }
-    }
-  }
-}
-
-function finalizeResultEffects(state, match) {
-  const homeTeam = state.teams.find((t) => t.tid === match.homeTid);
-  const awayTeam = state.teams.find((t) => t.tid === match.awayTid);
-  if (match.result.winnerTid === match.homeTid) { homeTeam.wins++; awayTeam.losses++; } else { awayTeam.wins++; homeTeam.losses++; }
-  homeTeam.revenue += 45_000;
-  awayTeam.revenue += 35_000;
-  homeTeam.cash += 45_000;
-  awayTeam.cash += 35_000;
-  applyPracticeAndFacilities(state, match.homeTid);
-  applyPracticeAndFacilities(state, match.awayTid);
-
-  updateSponsorProgress(state);
-  updatePlayerSeasonStats(state, match);
-
-  const userInvolved = match.homeTid === state.userTid || match.awayTid === state.userTid;
-  if (userInvolved) {
-    const ecoHome = (match.result.maps || []).reduce((acc, m) => ({ ECO: acc.ECO + (m.ecoSummary?.[match.homeTid]?.ECO || 0), FORCE: acc.FORCE + (m.ecoSummary?.[match.homeTid]?.FORCE || 0) }), { ECO: 0, FORCE: 0 });
-    const ecoAway = (match.result.maps || []).reduce((acc, m) => ({ ECO: acc.ECO + (m.ecoSummary?.[match.awayTid]?.ECO || 0), FORCE: acc.FORCE + (m.ecoSummary?.[match.awayTid]?.FORCE || 0) }), { ECO: 0, FORCE: 0 });
-    const clutchRounds = (match.result.maps || []).reduce((sum, m) => sum + (m.rounds || []).reduce((s, r) => s + ((r.clutches || []).length), 0), 0);
-    const mapScores = (match.result.maps || []).map((m) => `${m.mapName} ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}`).join(' | ');
-    addMessage(state, {
-      from: { type: 'system', name: 'Match Center' },
-      subject: `Match Report: ${mapScores || match.result.summary}`,
-      body: 'Series complete. Detailed map scores, economy profile, and clutch moments are now available.',
-      category: 'matches',
-      related: { matchId: match.mid },
-      details: {
-        bullets: [`Top performers: ${(match.result.topPlayers || []).map((p) => `${p.name} (${p.kills}/${p.deaths}/${p.assists})`).join(', ') || 'N/A'}`, `Key rounds with clutches: ${clutchRounds}`],
-        stats: [
-          { label: 'Series Score', value: match.result.summary },
-          { label: 'Home ECO/FORCE', value: `${ecoHome.ECO}/${ecoHome.FORCE}` },
-          { label: 'Away ECO/FORCE', value: `${ecoAway.ECO}/${ecoAway.FORCE}` }
-        ],
-        links: [{ label: 'Open Match View', route: `#/match?id=${match.mid}` }],
-        tags: ['matches']
-      }
-    });
-  }
-}
-
-function hasFiveStarters(state, tid) {
-  const team = state.teams.find((t) => t.tid === tid);
-  const starters = team?.starters || [];
-  return starters.filter((pid) => state.players.some((p) => p.pid === pid && p.tid === tid)).length >= 5;
-}
-
-export function simulateMatch(state, match) {
-  const series = simulateBo3Series(state, match);
-  match.status = 'final';
-  match.played = true;
-  match.result = series;
-  finalizeResultEffects(state, match);
-}
-
-export function openMatch(state, matchId) {
-  ensureAiRosterMinimum(state);
-  const match = state.schedule.find((m) => m.mid === matchId);
-  if (!match || match.status === 'final') return match;
-  if (!hasFiveStarters(state, match.homeTid) || !hasFiveStarters(state, match.awayTid)) return match;
-  if (!match.live) initializeLiveSeries(state, match);
-  match.status = 'inProgress';
-  return match;
-}
-
-export function playMatchRounds(state, matchId, n = 1) {
-  const match = openMatch(state, matchId);
-  if (!match || match.status !== 'inProgress') return null;
-  playLiveRounds(state, match, n);
-  if (match.status === 'final') finalizeResultEffects(state, match);
-  return match;
-}
-
-export function playMatchToHalf(state, matchId) {
-  const match = openMatch(state, matchId);
-  if (!match || match.status !== 'inProgress') return null;
-  simLiveToHalf(state, match);
-  if (match.status === 'final') finalizeResultEffects(state, match);
-  return match;
-}
-
-export function playMatchMap(state, matchId) {
-  const match = openMatch(state, matchId);
-  if (!match || match.status !== 'inProgress') return null;
-  simLiveMap(state, match);
-  if (match.status === 'final') finalizeResultEffects(state, match);
-  return match;
-}
-
-export function playMatchSeries(state, matchId) {
-  const match = openMatch(state, matchId);
-  if (!match || (match.status !== 'inProgress' && match.status !== 'final')) return null;
-  simLiveSeries(state, match);
-  if (match.status === 'final') finalizeResultEffects(state, match);
-  return match;
-}
-
-export function simulateNextMatchForUserTeam(state) {
-  ensureAiRosterMinimum(state);
-  const next = state.schedule.find((m) => m.season === state.meta.year && m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
-  if (!next) return null;
-  if (!hasFiveStarters(state, state.userTid)) {
-    addMessage(state, {
-      from: { type: 'system', name: 'Match Center' },
-      subject: 'Cannot start match: set 5 starters',
-      body: 'Your starting lineup must have 5 players before playing matches.',
-      category: 'team',
-      related: { matchId: next.mid },
-      actions: [{ label: 'Open Roster', route: '#/roster' }]
-    });
-    return null;
-  }
-  playMatchSeries(state, next.mid);
-  state.meta.week = Math.max(state.meta.week, next.week);
-  contractCycle(state);
-  maybeGenerateSponsorOffers(state);
-  settleSponsorDeadlines(state);
-  applyMonthlyExpenses(state);
-  maybeRolloverSeason(state);
-  return next;
-}
-
-export function simulateWeek(state) {
-  ensureAiRosterMinimum(state);
-  const weekMatches = state.schedule.filter((m) => m.season === state.meta.year && m.week === state.meta.week && m.status !== 'final');
-  for (const m of weekMatches) {
-    ensureAiRosterMinimum(state);
-    if (!hasFiveStarters(state, m.homeTid) || !hasFiveStarters(state, m.awayTid)) continue;
-    playMatchSeries(state, m.mid);
-  }
-  state.meta.week += 1;
-  contractCycle(state);
-  maybeGenerateSponsorOffers(state);
-  settleSponsorDeadlines(state);
-  applyMonthlyExpenses(state);
-  maybeRolloverSeason(state);
-  return weekMatches.length;
-}
-
-export function getFacilityUpgradeCost(team, key) {
-  return upgradeCost(team.facilities[key]);
+export function postInitEnsure(state) {
+  ensureYearSetup(state);
 }
