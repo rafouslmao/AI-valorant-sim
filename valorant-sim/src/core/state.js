@@ -128,7 +128,13 @@ export function normalizeWorld(world) {
   return world;
 }
 
-let world = normalizeWorld(loadFromSlot());
+let world = null;
+
+export async function hydrateWorldFromStorage() {
+  const loaded = await loadFromSlot();
+  world = normalizeWorld(loaded);
+  return world;
+}
 
 export function getWorld() { return world; }
 
@@ -137,14 +143,14 @@ export function setWorld(next) {
 }
 
 export function persistWorld() {
-  if (world) saveToSlot(world);
+  if (world) saveToSlot(world).catch(() => {});
 }
 
 export function mutateWorld(mutator) {
   if (!world) return;
   mutator(world);
   normalizeWorld(world);
-  saveToSlot(world);
+  saveToSlot(world).catch(() => {});
 }
 
 export function clearWorld() { world = null; }

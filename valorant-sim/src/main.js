@@ -1,6 +1,5 @@
-import { getWorld, setWorld } from './core/state.js';
+import { getWorld, hydrateWorldFromStorage, setWorld } from './core/state.js';
 import { ensureRouteGuards, parseHash } from './ui/router.js';
-import { loadFromSlot } from './core/storage.js';
 import { renderStartPage } from './ui/pages/start.js';
 import { renderCareerLayout } from './ui/components/layout.js';
 import { renderMessages } from './ui/pages/messages.js';
@@ -32,8 +31,9 @@ import {
 
 const app = document.getElementById('app');
 
-function renderCareer(path, params) {
-  const state = getWorld() || loadFromSlot();
+async function renderCareer(path, params) {
+  let state = getWorld();
+  if (!state) state = await hydrateWorldFromStorage();
   if (!state) return;
   setWorld(state);
 
@@ -65,12 +65,12 @@ function renderCareer(path, params) {
   }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction, onSimTournament: simulateTournamentAction }, getLayoutBadges(state));
 }
 
-function renderApp() {
+async function renderApp() {
   if (!ensureRouteGuards()) return;
   const { path, params } = parseHash();
   if (path === '/start') return renderStartPage(app);
-  renderCareer(path, params);
+  await renderCareer(path, params);
 }
 
-window.addEventListener('hashchange', renderApp);
+window.addEventListener('hashchange', () => { renderApp(); });
 renderApp();
