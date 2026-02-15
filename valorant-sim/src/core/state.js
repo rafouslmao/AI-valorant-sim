@@ -16,7 +16,8 @@ function ensurePlayerShape(player) {
   if (!player.greed) player.greed = 50;
   if (!player.playtimeDesire) player.playtimeDesire = 50;
   if (!player.preferredRole) player.preferredRole = player.currentRole;
-  if (!player.trainingPlan) player.trainingPlan = { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' };
+  if (!player.trainingPlan) player.trainingPlan = { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal', roleFocus: player.currentRole || 'Flex' };
+  if (!player.trainingPlan.roleFocus) player.trainingPlan.roleFocus = player.currentRole || 'Flex';
   if (!player.seasonStats) player.seasonStats = {};
   if (!player.currentContract) player.currentContract = { salaryPerYear: player.salary, yearsRemaining: 2, signedWithTid: player.tid, buyoutClause: player.salary * 3, rolePromise: 'starter', signingBonus: Math.round(player.salary * 0.15) };
   if (!player.agentPool) {
@@ -24,6 +25,8 @@ function ensurePlayerShape(player) {
     for (let i = 0; i < 2; i++) affinities[ALL_AGENTS[(i + Math.floor(Math.random() * ALL_AGENTS.length)) % ALL_AGENTS.length]] = 60;
     player.agentPool = { primaryRole: (player.currentRole || 'flex').toLowerCase(), affinities };
   }
+  if (!player.roleFamiliarity) player.roleFamiliarity = Object.fromEntries(ROLES.map((r) => [r, Math.max(20, Math.round(player.roleSkills?.[r] ?? 45))]));
+  for (const r of ROLES) if (player.roleFamiliarity[r] == null) player.roleFamiliarity[r] = Math.max(20, Math.round(player.roleSkills?.[r] ?? 45));
   ensurePlayerSystems(player, {});
 }
 
@@ -101,6 +104,7 @@ export function normalizeWorld(world) {
   world.schedule?.forEach((m) => {
     if (!m.status) m.status = m.played ? 'final' : 'scheduled';
     if (!('live' in m)) m.live = null;
+    if (!m.day) m.day = world.meta?.day || 1;
   });
   if (!world.recommendations) world.recommendations = [];
   if (!world.negotiations) world.negotiations = {};
