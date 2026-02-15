@@ -1,4 +1,4 @@
-import { ALL_AGENTS, FACILITY_CONFIG, INTENSITIES, MAP_POOL, ROSTER_LIMIT, SECONDARY_ROLE_TAGS, TRAINING_PRIMARY, TRAINING_SECONDARY } from '../../core/constants.js';
+import { ALL_AGENTS, FACILITY_CONFIG, INTENSITIES, MAP_POOL, ROLES, ROSTER_LIMIT, SECONDARY_ROLE_TAGS, TRAINING_PRIMARY, TRAINING_SECONDARY } from '../../core/constants.js';
 import { mutateWorld } from '../../core/state.js';
 import { advanceTimeToNextPhase, getFacilityUpgradeCost, getTournamentsForYear, openMatch, playMatchMap, playMatchRounds, playMatchSeries, playMatchToHalf, simulateCurrentTournament, simulateToNextTournament } from '../../core/sim.js';
 import { evaluateOffer, marketValue, startNegotiation, submitOffer } from '../../core/contracts.js';
@@ -15,6 +15,16 @@ function userCoach(state) { return state.coaches.find((c) => c.tid === state.use
 function starters(state, tid) { const t = state.teams.find((x) => x.tid === tid); return (t?.starters || []).map((pid) => state.players.find((p) => p.pid === pid && p.tid === tid)).filter(Boolean); }
 function bench(state, tid) { const sids = new Set((state.teams.find((x) => x.tid === tid)?.starters || [])); return state.players.filter((p) => p.tid === tid && !sids.has(p.pid)); }
 
+
+function derivedSummary(p) {
+  const d = p.derived || {};
+  return { ovr: p.ovr || 0, rifleImpact: d.rifleImpact || 0, entryPower: d.entryPower || 0, utilityValue: d.utilityValue || 0, clutchImpact: d.clutchImpact || 0, consistency: d.consistency || 0 };
+}
+
+function roleLearningNote(p) {
+  if (!p.roleLearning || p.roleLearning.remaining <= 0) return '';
+  return `<small class="error">learning role: -${Math.round((p.roleLearning.penalty || 0.12) * 100)}% effectiveness (${p.roleLearning.remaining}w)</small>`;
+}
 function teamDisplayAbbrev(team) {
   if (!team) return '-';
   if (/^Team\s+/i.test(team.name)) {
@@ -59,10 +69,16 @@ export function renderHome(main, state) {
 }
 
 function renderStarterRows(state, tid) {
-  return starters(state, tid).map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${p.ovr}</td><td>${p.currentRole}</td><td><select data-secondary-tag="${p.pid}">${SECONDARY_ROLE_TAGS.map((r) => `<option ${p.secondaryRoleTag === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-bench="${p.pid}">Move to Bench</button></td></tr>`).join('');
+  return starters(state, tid).map((p) => {
+    const sm = derivedSummary(p);
+    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.entryPower}</td><td>${sm.utilityValue}</td><td>${sm.clutchImpact}</td><td>${sm.consistency}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><select data-secondary-tag="${p.pid}">${SECONDARY_ROLE_TAGS.map((r) => `<option ${p.secondaryRoleTag === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-bench="${p.pid}">Move to Bench</button></td></tr>`;
+  }).join('');
 }
 function renderBenchRows(state, tid) {
-  return bench(state, tid).map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${p.ovr}</td><td>${p.currentRole}</td><td><button data-to-start="${p.pid}">Move to Starting Lineup</button></td></tr>`).join('');
+  return bench(state, tid).map((p) => {
+    const sm = derivedSummary(p);
+    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.utilityValue}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-start="${p.pid}">Move to Starting Lineup</button></td></tr>`;
+  }).join('');
 }
 
 export function renderRoster(main, state) {
@@ -70,14 +86,25 @@ export function renderRoster(main, state) {
   const start = starters(state, team.tid);
   const benchList = bench(state, team.tid);
   const warn = start.length < 5 ? '<p class="error">Starting lineup must have 5 players to start/play a match.</p>' : '';
-  main.innerHTML = `<h1>Roster</h1>${warn}
+  main.innerHTML = `<h1>Roster</h1>${warn}<p>Cohesion: <strong>${Math.round(team.teamCohesion || 0)}</strong> • Familiarity grows after maps played.</p>
   <h3>Starting Lineup (${start.length}/5)</h3>
-  <table><tr><th>Player</th><th>OVR</th><th>Role</th><th>Secondary Tag</th><th></th></tr>${renderStarterRows(state, team.tid)}</table>
+  <table><tr><th>Player</th><th>OVR</th><th>Rifle</th><th>Entry</th><th>Utility</th><th>Clutch</th><th>Consistency</th><th>Primary Role</th><th>Secondary Tag</th><th></th></tr>${renderStarterRows(state, team.tid)}</table>
   <h3>Bench (${benchList.length})</h3>
-  <table><tr><th>Player</th><th>OVR</th><th>Role</th><th></th></tr>${renderBenchRows(state, team.tid)}</table>`;
+  <table><tr><th>Player</th><th>OVR</th><th>Rifle</th><th>Utility</th><th>Primary Role</th><th></th></tr>${renderBenchRows(state, team.tid)}</table>`;
 
   main.querySelectorAll('[data-secondary-tag]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
     const p = w.players.find((x) => x.pid === sel.dataset.secondaryTag); if (p) p.secondaryRoleTag = sel.value;
+  }));
+  main.querySelectorAll('[data-primary-role]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
+    const p = w.players.find((x) => x.pid === sel.dataset.primaryRole); if (!p) return;
+    const oldRole = p.primaryRole || p.currentRole;
+    p.primaryRole = sel.value;
+    p.currentRole = sel.value;
+    p.preferredRole = sel.value;
+    p.roleMastery[sel.value] = Math.max(p.roleMastery[sel.value] || 40, 45);
+    if (oldRole !== sel.value) p.roleLearning = { role: sel.value, remaining: 6, penalty: 0.12 };
+    const team = w.teams.find((t) => t.tid === p.tid);
+    if (team) team.teamCohesion = Math.max(0, (team.teamCohesion || 50) - 2);
   }));
 
   main.querySelectorAll('[data-to-bench]').forEach((btn) => btn.onclick = () => {
@@ -414,11 +441,12 @@ export function renderTeamDetail(main, state, id) {
   const benchRows = bench(state, team.tid).map((p) => `<li><a href="#/player?id=${p.pid}">${p.name}</a> (${p.currentRole})</li>`).join('');
   const gmLinks = state.meta.mode === 'GM' && state.userTid === team.tid ? '<a href="#/finances">View Finances</a> • ' : '';
   const events = (state.eventsByYear?.[state.meta.year] || []).filter((e) => (e.mainTeams || []).includes(team.tid) || (e.qualifierParticipants || []).includes(team.tid));
-  main.innerHTML = `<h1>${team.name}</h1><p>${team.region} • ${team.tier} • Record ${team.wins || 0}-${team.losses || 0}</p><p>ELO ${Math.round(team.elo || 0)} • Circuit Points ${team.circuitPoints || 0} • Cash ${formatMoney(team.cash || 0)}</p>
+  const famRows = Object.entries(team.compFamiliarity || {}).map(([map, v]) => `<li>${map}: ${Math.round(v)}</li>`).join('');
+  main.innerHTML = `<h1>${team.name}</h1><p>${team.region} • ${team.tier} • Record ${team.wins || 0}-${team.losses || 0}</p><p>ELO ${Math.round(team.elo || 0)} • Circuit Points ${team.circuitPoints || 0} • Cash ${formatMoney(team.cash || 0)}</p><p>Cohesion: <strong>${Math.round(team.teamCohesion || 0)}</strong></p>
   <p>Head Coach: ${coach ? `<a href="#/coach?id=${coach.cid}">${coach.profile.name}</a>` : 'None'}</p>
   <h3>Starters</h3><ul>${startersRows || '<li>None</li>'}</ul>
   <h3>Bench</h3><ul>${benchRows || '<li>None</li>'}</ul>
-  <h3>Events This Year</h3><ul>${events.map((e) => `<li>${e.name} - ${e.status}</li>`).join('') || '<li>No events played yet.</li>'}</ul>
+  <h3>Map Familiarity</h3><ul>${famRows || '<li>None</li>'}</ul><h3>Events This Year</h3><ul>${events.map((e) => `<li>${e.name} - ${e.status}</li>`).join('') || '<li>No events played yet.</li>'}</ul>
   <p>Quick links: <a href="#/players">View Players</a> • ${gmLinks}<a href="#/matches">View Tournaments</a></p>`;
 }
 
@@ -447,6 +475,9 @@ export function renderPlayerDetail(main, state, id) {
   const p = state.players.find((x) => x.pid === id);
   if (!p) return (main.innerHTML = '<p>Player not found.</p>');
   const attrs = Object.entries(p.attrs).map(([k, v]) => `${k}: ${Math.round(v)}`).join(', ');
+  const d = p.derived || {};
+  const adv = p.attributes || {};
+  const traitChips = (p.traits || []).map((t) => `<span class="pill">${t}</span>`).join(' ');
   const affinityTop = Object.entries(p.agentPool.affinities || {}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([a,v])=>`${a}(${v})`).join(', ');
   const seasonRows = Object.entries(p.seasonStats || {}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([season, st]) => {
     const kd = st.deaths ? (st.kills / st.deaths).toFixed(2) : st.kills.toFixed(2);
@@ -454,13 +485,65 @@ export function renderPlayerDetail(main, state, id) {
     const dpm = (st.deaths / Math.max(1, st.mapsPlayed)).toFixed(2);
     return `<tr><td>${season}</td><td>${st.kills}</td><td>${st.deaths}</td><td>${st.assists}</td><td>${kd}</td><td>${kpm}</td><td>${dpm}</td><td>${st.mapsPlayed}</td><td>${st.mostKillsInMap || 0}</td></tr>`;
   }).join('');
-  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>OVR: ${p.ovr}</p><p>Roles: ${p.roles.join(', ')} | Current: ${p.currentRole} | Secondary Tag: ${p.secondaryRoleTag}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><p>${attrs}</p>
+  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><details><summary>Advanced Stats</summary><pre>${JSON.stringify(adv, null, 2)}</pre></details><p>${attrs}</p>
   <h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
 }
 
 export function renderCoachDetail(main, state, id) {
   const c = state.coaches.find((x) => x.cid === id);
   if (!c) return (main.innerHTML = '<p>Coach not found.</p>');
-  const r = c.ratings;
-  main.innerHTML = `<h1>${c.profile.name}</h1><p>${c.staffRole} • ${c.profile.age} • ${c.profile.nationality} • ${c.profile.styleTag}</p><p>Team: ${c.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === c.tid)?.name}</p><p>prep ${r.prep}, veto ${r.vetoSkill}, leadership ${r.leadership}, dev ${r.skillDevelopment}</p>`;
+  const s = c.summary || { prep: 0, veto: 0, leadership: 0, development: 0 };
+  main.innerHTML = `<h1>${c.profile.name}</h1><p>${c.staffRole} • ${c.profile.age} • ${c.profile.nationality} • ${c.profile.styleTag}</p><p>Team: ${c.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === c.tid)?.name}</p><p>Prep ${s.prep} • Veto ${s.veto} • Leadership ${s.leadership} • Dev ${s.development}</p><details><summary>Detailed Coaching Attributes</summary><pre>${JSON.stringify(c.attributes || {}, null, 2)}</pre></details>`;
+}
+
+
+export function renderGodMode(main, state) {
+  if (!state.meta.godMode) {
+    main.innerHTML = `<h1>God Mode</h1><p>God Mode is currently disabled for this save.</p><button id="enable-gm">Enable God Mode</button>`;
+    main.querySelector('#enable-gm').onclick = () => { mutateWorld((w) => { w.meta.godMode = true; }); window.dispatchEvent(new HashChangeEvent('hashchange')); };
+    return;
+  }
+  const teams = state.teams.map((t) => `<option value="${t.tid}">${t.name}</option>`).join('');
+  main.innerHTML = `<h1>God Mode</h1><p>Edits save immediately.</p>
+  <h3>Players</h3><input id="gm-search" placeholder="Search player"/><button id="gm-find">Find</button><div id="gm-player"></div>
+  <h3>Rosters</h3><p>Move player to team/free agency.</p><input id="gm-move-pid" placeholder="Player ID"/> <select id="gm-move-team"><option value="">Free Agent</option>${teams}</select> <button id="gm-move">Apply</button>`;
+
+  main.querySelector('#gm-find').onclick = () => {
+    const q = main.querySelector('#gm-search').value.toLowerCase().trim();
+    const p = state.players.find((x) => x.name.toLowerCase().includes(q));
+    const box = main.querySelector('#gm-player');
+    if (!p) { box.innerHTML = '<p>No player found.</p>'; return; }
+    box.innerHTML = `<div class="card"><p><strong>${p.name}</strong> (${p.pid})</p><label>Age <input id="gm-age" value="${p.age}"/></label><label>Nationality <input id="gm-nat" value="${p.nationality}"/></label><label>Primary Role <select id="gm-role">${ROLES.map((r)=>`<option ${p.primaryRole===r?'selected':''}>${r}</option>`).join('')}</select></label><label>Traits CSV <input id="gm-traits" value="${(p.traits||[]).join(', ')}"/></label><button id="gm-apply-player">Apply</button></div>`;
+    box.querySelector('#gm-apply-player').onclick = () => {
+      mutateWorld((w) => {
+        const wp = w.players.find((x) => x.pid === p.pid); if (!wp) return;
+        wp.age = Number(box.querySelector('#gm-age').value) || wp.age;
+        wp.nationality = box.querySelector('#gm-nat').value || wp.nationality;
+        wp.primaryRole = box.querySelector('#gm-role').value;
+        wp.currentRole = wp.primaryRole;
+        wp.preferredRole = wp.primaryRole;
+        wp.traits = box.querySelector('#gm-traits').value.split(',').map((x)=>x.trim()).filter(Boolean).slice(0,4);
+      });
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    };
+  };
+
+  main.querySelector('#gm-move').onclick = () => {
+    mutateWorld((w) => {
+      const pid = main.querySelector('#gm-move-pid').value.trim();
+      const p = w.players.find((x) => x.pid === pid);
+      if (!p) return;
+      const tidRaw = main.querySelector('#gm-move-team').value;
+      p.tid = tidRaw === '' ? null : Number(tidRaw);
+      for (const t of w.teams) {
+        t.starters = (t.starters || []).filter((id) => id !== p.pid);
+      }
+      if (p.tid != null) {
+        const team = w.teams.find((t) => t.tid === p.tid);
+        const rosterIds = w.players.filter((pl) => pl.tid === p.tid).map((pl) => pl.pid);
+        team.starters = [...new Set([...(team.starters || []), ...rosterIds])].slice(0, 5);
+      }
+    });
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  };
 }

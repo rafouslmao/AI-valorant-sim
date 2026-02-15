@@ -2,11 +2,11 @@ import { REAL_TEAM_DATABASE } from './database.js';
 
 export const ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex'];
 export const SECONDARY_ROLE_TAGS = ['None', 'IGL', 'Second Caller', 'Oper', 'Entry', 'Lurker', 'Anchor', 'Support'];
-export const PRACTICE_FOCUS = ['aim', 'utility', 'clutch', 'mental'];
-export const TRAINING_PRIMARY = ['Duelist', 'Initiator', 'Controller', 'Sentinel'];
-export const TRAINING_SECONDARY = ['None', 'Aim', 'Clutch', 'Utility usage', 'Mental resilience', 'Decision making', 'Duelist', 'Initiator', 'Controller', 'Sentinel'];
+export const PRACTICE_FOCUS = ['Mechanics', 'Utility', 'Decision', 'Mental', 'Role mastery', 'Agent mastery', 'Teamwork'];
+export const TRAINING_PRIMARY = ['Mechanics', 'Utility', 'Decision', 'Mental', 'Role mastery', 'Agent mastery', 'Teamwork'];
+export const TRAINING_SECONDARY = ['None', 'Mechanics', 'Utility', 'Decision', 'Mental', 'Role mastery', 'Agent mastery', 'Teamwork', 'Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex'];
 export const INTENSITIES = ['light', 'normal', 'hard'];
-export const ROSTER_LIMIT = 10;
+export const ROSTER_LIMIT = 12;
 
 // Keep this array as a canonical update point if Riot rotates map pools.
 export const MAP_POOL = [

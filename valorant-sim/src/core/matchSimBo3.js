@@ -1,5 +1,6 @@
 import { AGENT_ROLES, ALL_AGENTS, MAP_POOL } from './constants.js';
 import { clamp } from './utils.js';
+import { computeDerivedRatings } from './ratings.js';
 
 const ROUND_TYPES = ['elim', 'spike', 'defuse', 'time'];
 const BUY_LABELS = ['ECO', 'HALF', 'FORCE', 'FULL'];
@@ -20,6 +21,18 @@ function teamStarters(state, tid) {
   const players = ids.map((pid) => state.players.find((p) => p.pid === pid)).filter(Boolean);
   if (players.length >= 5) return players.slice(0, 5);
   return state.players.filter((p) => p.tid === tid).slice(0, 5);
+}
+
+function teamSimContext(team, mapId) {
+  const cohesion = clamp(team.teamCohesion ?? 50, 0, 100);
+  const familiarity = clamp(team.compFamiliarity?.[mapId] ?? 35, 0, 100);
+  return {
+    cohesion,
+    familiarity,
+    cohesionBonus: 0.92 + cohesion / 420,
+    familiarityBonus: 0.9 + familiarity / 360,
+    varianceReducer: 1 - cohesion / 420
+  };
 }
 
 function getMapPref(team, mapId) {
@@ -191,22 +204,21 @@ function lineupStrength(state, match, map, tid, side, buyProfileData) {
   const team = state.teams.find((t) => t.tid === tid);
   const mapDef = MAP_POOL.find((m) => m.id === map.mapId) || { atkBias: 0, defBias: 0 };
   const rows = map.playerStats[tid] || [];
+  const ctx = teamSimContext(team, map.mapId);
   const playerImpact = rows.reduce((sum, row) => {
     const player = state.players.find((p) => p.pid === row.pid);
-    const affinity = affinityScore(player, row.agent);
-    const base = (player?.ovr || 55) + ((player?.roleSkills?.[player?.currentRole] || 45) * 0.2);
-    return sum + base + playerContribution(row, affinity, side);
+    const d = computeDerivedRatings(player, { fatigue: team.fatigue || 0, isPlayoffs: map.isPlayoffMap });
+    const affinity = affinityScore(player, row.agent) / 100;
+    const sideBase = side === 'atk'
+      ? d.entryPower * 0.34 + d.utilityValue * 0.2 + d.rifleImpact * 0.2 + d.tradeReliability * 0.13 + d.adaptationScore * 0.13
+      : d.anchorValue * 0.3 + d.infoValue * 0.22 + d.tradeReliability * 0.2 + d.clutchImpact * 0.14 + d.rifleImpact * 0.14;
+    const variance = (Math.random() - 0.5) * (8 * ctx.varianceReducer) * (1 - (d.consistency || 55) / 160);
+    return sum + sideBase * (0.9 + affinity * 0.1) + variance;
   }, 0) / Math.max(rows.length, 1);
-  const utilMod = rows.reduce((sum, row) => {
-    const player = state.players.find((p) => p.pid === row.pid);
-    const affinity = affinityScore(player, row.agent);
-    const role = String(row.role || '').toLowerCase();
-    if (role === 'initiator' || role === 'controller') return sum + affinity * 0.0015;
-    return sum;
-  }, 0);
+
   const mapMod = 1 + (team.mapRatings?.[map.mapId] ?? 50) / 950;
   const sideMod = 1 + (side === 'atk' ? mapDef.atkBias : mapDef.defBias) * 0.5;
-  return (playerImpact + utilMod) * mapMod * sideMod * buyPower(buyProfileData);
+  return playerImpact * mapMod * sideMod * buyPower(buyProfileData) * ctx.cohesionBonus * ctx.familiarityBonus;
 }
 
 function maybeTimeout(match, map, tid, roundIndex) {
@@ -358,6 +370,15 @@ function concludeIfNeeded(match) {
     computeRatings(currentMap.playerStats[match.homeTid]);
     computeRatings(currentMap.playerStats[match.awayTid]);
     live.seriesScore[currentMap.winnerTid] += 1;
+    const loserTid = currentMap.winnerTid === match.homeTid ? match.awayTid : match.homeTid;
+    const winnerTeam = state.teams.find((t) => t.tid === currentMap.winnerTid);
+    const loserTeam = state.teams.find((t) => t.tid === loserTid);
+    winnerTeam.teamCohesion = clamp((winnerTeam.teamCohesion || 50) + 1.6, 0, 100);
+    loserTeam.teamCohesion = clamp((loserTeam.teamCohesion || 50) + 0.5, 0, 100);
+    winnerTeam.compFamiliarity[currentMap.mapId] = clamp((winnerTeam.compFamiliarity[currentMap.mapId] || 35) + 2.5, 0, 100);
+    loserTeam.compFamiliarity[currentMap.mapId] = clamp((loserTeam.compFamiliarity[currentMap.mapId] || 35) + 1.8, 0, 100);
+    winnerTeam.fatigue = clamp((winnerTeam.fatigue || 0) + 4, 0, 100);
+    loserTeam.fatigue = clamp((loserTeam.fatigue || 0) + 4, 0, 100);
 
     const h = live.seriesScore[match.homeTid];
     const a = live.seriesScore[match.awayTid];
@@ -419,12 +440,19 @@ export function playLiveRound(state, match) {
   const timeoutA = maybeTimeout(match, map, match.homeTid, roundIndex + 1);
   const timeoutB = maybeTimeout(match, map, match.awayTid, roundIndex + 1);
 
-  const buffA = timeoutA ? 1.03 : 1;
-  const buffB = timeoutB ? 1.03 : 1;
+  const coachA = state.coaches.find((c) => c.tid === match.homeTid && c.staffRole === 'Head Coach');
+  const coachB = state.coaches.find((c) => c.tid === match.awayTid && c.staffRole === 'Head Coach');
+  const pauseA = coachA?.summary?.pauseImpact || 55;
+  const pauseB = coachB?.summary?.pauseImpact || 55;
+  const buffA = timeoutA ? (1 + pauseA / 1000) : 1;
+  const buffB = timeoutB ? (1 + pauseB / 1000) : 1;
   const homePower = lineupStrength(state, match, map, match.homeTid, homeSide, homeEco) * buffA;
   const awayPower = lineupStrength(state, match, map, match.awayTid, awaySide, awayEco) * buffB;
 
-  const pHome = 1 / (1 + Math.exp(-(homePower - awayPower) / 10));
+  const lateRound = live.roundIndex >= 14;
+  const homeAdapt = lateRound ? (state.players.filter((p) => p.tid === match.homeTid && (state.teams.find((t) => t.tid === match.homeTid)?.starters || []).includes(p.pid)).reduce((sum,p)=>sum+(p.derived?.adaptationScore||50),0)/5 - 50) / 220 : 0;
+  const awayAdapt = lateRound ? (state.players.filter((p) => p.tid === match.awayTid && (state.teams.find((t) => t.tid === match.awayTid)?.starters || []).includes(p.pid)).reduce((sum,p)=>sum+(p.derived?.adaptationScore||50),0)/5 - 50) / 220 : 0;
+  const pHome = 1 / (1 + Math.exp(-((homePower + homeAdapt) - (awayPower + awayAdapt)) / 10));
   const homeWin = Math.random() < pHome;
   const winnerTid = homeWin ? match.homeTid : match.awayTid;
   const loserTid = homeWin ? match.awayTid : match.homeTid;

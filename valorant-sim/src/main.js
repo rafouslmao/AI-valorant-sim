@@ -23,6 +23,7 @@ import {
   renderSponsors,
   renderStaff,
   renderStrategy,
+  renderGodMode,
   simulateNextAction,
   simulateWeekAction,
   simulateTournamentAction
@@ -57,6 +58,7 @@ function renderCareer(path, params) {
     if (route === 'facilities') return renderFacilities(main, state);
     if (route === 'player') return renderPlayerDetail(main, state, params.get('id'));
     if (route === 'coach') return renderCoachDetail(main, state, params.get('id'));
+    if (route === 'god-mode') return renderGodMode(main, state);
     main.innerHTML = '<h1>Not Found</h1>';
   }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction, onSimTournament: simulateTournamentAction }, getLayoutBadges(state));
 }

@@ -10,10 +10,26 @@ function teamSnapshot(state, tid) {
     rosterStrength: team.rosterStrength ?? 55,
     facilitiesLevel: team.facilitiesLevel ?? 50,
     financialStability: team.financialStability ?? 55,
-    coachQuality: coach ? Math.round((coach.ratings.prep + coach.ratings.leadership + coach.ratings.skillDevelopment) / 3) : 55
+    coachQuality: coach ? Math.round(((coach.summary?.prep ?? coach.ratings?.prep ?? 55) + (coach.summary?.development ?? coach.ratings?.skillDevelopment ?? 55)) / 2) : 55
   };
 }
 
+
+const CORE_ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel'];
+
+export function getRosterNeeds(state, team) {
+  const roster = state.players.filter((p) => p.tid === team.tid);
+  const roleCounts = Object.fromEntries(CORE_ROLES.map((r) => [r, 0]));
+  for (const p of roster) {
+    const roles = new Set([p.primaryRole, p.currentRole, ...(p.roles || [])].filter(Boolean));
+    for (const role of CORE_ROLES) if (roles.has(role)) roleCounts[role] += 1;
+  }
+  const missingRoles = CORE_ROLES.filter((r) => roleCounts[r] === 0);
+  const thinRoles = CORE_ROLES.filter((r) => roleCounts[r] === 1);
+  const depthScore = clamp(roster.length / 7, 0, 1.5);
+  const urgency = clamp((5 - roster.length) * 18 + missingRoles.length * 12 + thinRoles.length * 4, 0, 100);
+  return { missingRoles, thinRoles, depthScore, urgencyScore: urgency, rosterSize: roster.length };
+}
 export function marketValue(player) {
   const primeFactor = player.age <= 24 ? 1.08 : player.age <= 28 ? 1 : 0.9;
   const perf = (player.ovr + player.reputation) / 2;
@@ -196,12 +212,42 @@ export function generateAIOffers(state, playerId) {
 
 export function aiResolveFreeAgency(state) {
   const freeAgents = state.players.filter((p) => p.tid === null);
-  for (const player of freeAgents) {
-    const offers = generateAIOffers(state, player.pid);
-    const best = offers[0];
-    if (!best || best.score < 0.95) continue;
-    player.tid = best.teamId;
-    player.salary = best.salary;
-    player.currentContract = { salaryPerYear: best.salary, yearsRemaining: best.years, signedWithTid: best.teamId, buyoutClause: Math.round(best.salary * 3), rolePromise: best.rolePromise, signingBonus: best.signingBonus };
+  const teamActions = new Set();
+  const teams = state.teams.slice().sort((a, b) => (a.tier === 'Tier 1' ? -1 : 1));
+  for (const team of teams) {
+    const needs = getRosterNeeds(state, team);
+    if (needs.rosterSize >= 5 && needs.missingRoles.length === 0 && needs.thinRoles.length <= 1) continue;
+    if (needs.rosterSize >= 5 && teamActions.has(team.tid)) continue;
+    const maxActions = needs.rosterSize < 4 ? 2 : 1;
+    let actions = 0;
+
+    while (actions < maxActions) {
+      const preferredRoles = needs.missingRoles.length ? needs.missingRoles : needs.thinRoles.length ? needs.thinRoles : CORE_ROLES;
+      const candidates = freeAgents
+        .filter((p) => p.tid == null)
+        .map((p) => {
+          const fitRole = preferredRoles.some((role) => [p.primaryRole, p.currentRole, ...(p.roles || [])].includes(role));
+          const roleFit = fitRole ? 14 : 0;
+          const fit = (p.ovr || 55) + roleFit + (p.derived?.utilityValue || 50) * 0.08;
+          return { p, fit };
+        })
+        .sort((a, b) => b.fit - a.fit)
+        .slice(0, 8);
+      if (!candidates.length) break;
+
+      const chosen = candidates[0].p;
+      const offers = generateAIOffers(state, chosen.pid).filter((o) => o.teamId === team.tid);
+      const best = offers[0];
+      if (!best || best.score < 0.9) break;
+      chosen.tid = best.teamId;
+      chosen.salary = best.salary;
+      chosen.currentContract = { salaryPerYear: best.salary, yearsRemaining: best.years, signedWithTid: best.teamId, buyoutClause: Math.round(best.salary * 3), rolePromise: best.rolePromise, signingBonus: best.signingBonus };
+      actions += 1;
+      teamActions.add(team.tid);
+      const i = freeAgents.findIndex((x) => x.pid === chosen.pid);
+      if (i >= 0) freeAgents.splice(i, 1);
+      if (state.players.filter((p) => p.tid === team.tid).length >= 12) break;
+      if (needs.rosterSize >= 4) break;
+    }
   }
 }

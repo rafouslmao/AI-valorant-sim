@@ -1,4 +1,5 @@
 import { ALL_AGENTS, MAP_POOL, ROLES } from './constants.js';
+import { computeDerivedRatings, ensureCoachAttributes, ensurePlayerSystems, mapFamiliarityTemplate } from './ratings.js';
 import { loadFromSlot, saveToSlot } from './storage.js';
 
 function ensurePlayerShape(player) {
@@ -15,7 +16,7 @@ function ensurePlayerShape(player) {
   if (!player.greed) player.greed = 50;
   if (!player.playtimeDesire) player.playtimeDesire = 50;
   if (!player.preferredRole) player.preferredRole = player.currentRole;
-  if (!player.trainingPlan) player.trainingPlan = { primaryFocus: player.currentRole, secondaryFocus: 'None', intensity: 'normal' };
+  if (!player.trainingPlan) player.trainingPlan = { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' };
   if (!player.seasonStats) player.seasonStats = {};
   if (!player.currentContract) player.currentContract = { salaryPerYear: player.salary, yearsRemaining: 2, signedWithTid: player.tid, buyoutClause: player.salary * 3, rolePromise: 'starter', signingBonus: Math.round(player.salary * 0.15) };
   if (!player.agentPool) {
@@ -23,6 +24,7 @@ function ensurePlayerShape(player) {
     for (let i = 0; i < 2; i++) affinities[ALL_AGENTS[(i + Math.floor(Math.random() * ALL_AGENTS.length)) % ALL_AGENTS.length]] = 60;
     player.agentPool = { primaryRole: (player.currentRole || 'flex').toLowerCase(), affinities };
   }
+  ensurePlayerSystems(player, {});
 }
 
 function ensureCoachShape(coach) {
@@ -34,6 +36,7 @@ function ensureCoachShape(coach) {
   if (!coach.styleSliders) coach.styleSliders = { aggressionBias: 0, structureBias: 0, innovationBias: 0, rookieTrust: 0, egoManagementBias: 0 };
   if (!coach.staffRole) coach.staffRole = 'Head Coach';
   if (!coach.salary) coach.salary = 35000;
+  ensureCoachAttributes(coach);
 }
 
 
@@ -79,6 +82,8 @@ function ensureTeamShape(team, worldPlayers) {
   }
 
   if (!team.strategy.defaultCompByMap) team.strategy.defaultCompByMap = { global: 'global' };
+  if (team.teamCohesion == null) team.teamCohesion = 55;
+  if (!team.compFamiliarity) team.compFamiliarity = mapFamiliarityTemplate();
   if (!Array.isArray(team.starters)) team.starters = [];
   if (team.starters.length < 5 && worldPlayers) {
     const firstFive = worldPlayers.filter((p) => p.tid === team.tid).slice(0, 5).map((p) => p.pid);
@@ -89,6 +94,8 @@ function ensureTeamShape(team, worldPlayers) {
 export function normalizeWorld(world) {
   if (!world) return world;
   world.players?.forEach(ensurePlayerShape);
+  const teamByTid = new Map((world.teams || []).map((t) => [t.tid, t]));
+  world.players?.forEach((p) => computeDerivedRatings(p, { fatigue: teamByTid.get(p.tid)?.fatigue || 0 }));
   world.coaches?.forEach(ensureCoachShape);
   world.teams?.forEach((team) => ensureTeamShape(team, world.players));
   world.schedule?.forEach((m) => {
@@ -108,6 +115,7 @@ export function normalizeWorld(world) {
   if (!world.eventLog) world.eventLog = [];
   if (!('currentEventId' in world)) world.currentEventId = null;
   if (!world.meta.day) world.meta.day = 1;
+  if (!('godMode' in world.meta)) world.meta.godMode = false;
   ensureWorldStrategy(world);
   world.messages?.forEach((m) => {
     if (!m.details) m.details = { bullets: [], stats: [], links: [], tags: [] };

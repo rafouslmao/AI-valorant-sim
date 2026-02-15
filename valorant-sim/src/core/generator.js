@@ -1,5 +1,6 @@
 import { AGENT_ROLES, FACILITY_CONFIG, MAP_POOL, PRACTICE_FOCUS, ROLES } from './constants.js';
 import { REAL_IMPORTED_PLAYERS, REAL_TEAM_DATABASE } from './database.js';
+import { computeDerivedRatings, createPlayerAttributes, ensureCoachAttributes, ensurePlayerSystems, mapFamiliarityTemplate } from './ratings.js';
 import { randInt, uid, weightedPick } from './utils.js';
 
 const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES', 'KR'];
@@ -32,8 +33,8 @@ function genAttributes(seedKey) {
 }
 
 export function computePlayerOverall(player) {
-  const a = player.attrs;
-  return Math.round(a.aim * 0.28 + a.utility * 0.2 + a.clutch * 0.17 + a.mental * 0.15 + a.teamwork * 0.1 + a.decisionMaking * 0.1);
+  if (!player.derived) computeDerivedRatings(player, {});
+  return player.ovr || 55;
 }
 
 function initAgentPool(primaryRole, seedKey) {
@@ -71,6 +72,7 @@ function createImportedPlayer(seedPlayer) {
   const primaryRole = cleanRole(seedPlayer.primaryRole || roles[0]);
   const seedKey = `${seedPlayer.name}-${seedPlayer.teamName || 'FA'}`;
   const attrs = genAttributes(seedKey);
+  const attributes = createPlayerAttributes(Math.round((attrs.aim + attrs.utility + attrs.mental) / 3));
   const salary = seededRange(hashNum(`${seedPlayer.name}-salary`), 38000, 115000);
 
   const player = {
@@ -88,12 +90,13 @@ function createImportedPlayer(seedPlayer) {
     playtimeDesire: seededRange(hashNum(`${seedPlayer.name}-pt`), 35, 95),
     preferredRole: primaryRole,
     attrs,
+    attributes,
     roles,
     currentRole: primaryRole,
     secondaryRoleTag: (seedPlayer.tags || [])[0] || 'None',
     roleSkills: Object.fromEntries(ROLES.map((r) => [r, seededRange(hashNum(`${seedPlayer.name}-${r}`), r === primaryRole ? 60 : 35, r === primaryRole ? 90 : 75)])),
     agentPool: initAgentPool(primaryRole, seedKey),
-    trainingPlan: { primaryFocus: primaryRole === 'Flex' ? 'Initiator' : primaryRole, secondaryFocus: 'None', intensity: 'normal' },
+    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' },
     currentContract: {
       salaryPerYear: salary,
       yearsRemaining: seedPlayer.freeAgent ? 0 : seededRange(hashNum(`${seedPlayer.name}-years`), 1, 3),
@@ -103,10 +106,11 @@ function createImportedPlayer(seedPlayer) {
       signingBonus: Math.round(salary * 0.2)
     },
     isStarter: Boolean(seedPlayer.starter && !seedPlayer.freeAgent),
+    roleLearning: null,
     history: [],
     seasonStats: {}
   };
-  player.ovr = computePlayerOverall(player);
+  ensurePlayerSystems(player, {});
   return player;
 }
 
@@ -127,13 +131,15 @@ function randomCoachIgn() {
 export function createCoach(tid = null, role = 'Head Coach', forcedName) {
   const base = forcedName || randomCoachIgn();
   const h = hashNum(base + tid + role);
-  return {
+  const coach = {
     cid: uid('c'), tid, staffRole: role, salary: seededRange(h * 3, 30000, 100000),
     profile: { name: base, age: seededRange(h * 5, 29, 58), nationality: nationalities[h % nationalities.length], styleTag: coachStyles[h % coachStyles.length] },
     ratings: coreCoachRatings(base),
     styleSliders: { aggressionBias: slider(h * 2), structureBias: slider(h * 3), innovationBias: slider(h * 5), rookieTrust: slider(h * 7), egoManagementBias: slider(h * 11) },
     history: []
   };
+  ensureCoachAttributes(coach);
+  return coach;
 }
 
 function initFacilities() {
@@ -190,6 +196,8 @@ function createTeam(seedTeam, tid, tier = 'Tier 1') {
     circuitPoints: 0,
     eventsPlayedThisYear: 0,
     lastEventPlayed: null
+    ,teamCohesion: seededRange(h * 23, 42, 68)
+    ,compFamiliarity: mapFamiliarityTemplate()
   };
 }
 
@@ -253,7 +261,7 @@ export function generateWorld({ userTid, mode, saveName, userName }) {
 
   return {
     rules: { allowDuplicateAgentsSameTeam: true },
-    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, day: 1, mode, saveName, userName, godMode: true, createdAt: Date.now(), initializedYear: null },
+    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, day: 1, mode, saveName, userName, godMode: false, createdAt: Date.now(), initializedYear: null },
     userTid,
     teams,
     players,

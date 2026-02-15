@@ -16,7 +16,8 @@ const tabs = [
   ['staff', 'Staff'],
   ['finances', 'Finances'],
   ['practice', 'Practice'],
-  ['facilities', 'Facilities']
+  ['facilities', 'Facilities'],
+  ['god-mode', 'God Mode']
 ];
 
 export function renderCareerLayout(root, activeTab, contentBuilder, actions = {}, badges = {}) {

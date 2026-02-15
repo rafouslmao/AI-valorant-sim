@@ -2,6 +2,8 @@ import { AGENT_ROLES, PRACTICE_FOCUS } from './constants.js';
 import { clamp, uid } from './utils.js';
 import { computePlayerOverall, createCoach } from './generator.js';
 import { applyWeeklyTraining } from './training.js';
+import { aiResolveFreeAgency } from './contracts.js';
+import { initializeLiveSeries, playLiveRound, playLiveRounds, simLiveMap, simLiveSeries, simLiveToHalf } from './matchSimBo3.js';
 import { addMessage } from './messages.js';
 
 const REGION_MAP = ['Americas', 'EMEA', 'Pacific', 'China'];
@@ -287,6 +289,7 @@ function ensureYearSetup(state) {
   const year = state.meta.year;
   if (state.meta.initializedYear === year && state.eventsByYear?.[year]?.length) return;
   fillTier2Rosters(state);
+  aiResolveFreeAgency(state);
   state.eventsByYear = state.eventsByYear || {};
   state.eventsByYear[year] = generateYearCalendar(state, year);
   for (const e of state.eventsByYear[year]) setupEventParticipation(state, e);
@@ -416,11 +419,36 @@ export function computeFacilityEffects(team) {
   };
 }
 
-export function openMatch(state) { return null; }
-export function playMatchRounds(state) { return null; }
-export function playMatchToHalf(state) { return null; }
-export function playMatchMap(state) { return null; }
-export function playMatchSeries(state) { return null; }
+export function openMatch(state) {
+  const match = state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
+  if (!match) return null;
+  initializeLiveSeries(state, match);
+  return match;
+}
+export function playMatchRounds(state, n = 6) {
+  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+  if (!match) return null;
+  playLiveRounds(state, match, n);
+  return match;
+}
+export function playMatchToHalf(state) {
+  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+  if (!match) return null;
+  simLiveToHalf(state, match);
+  return match;
+}
+export function playMatchMap(state) {
+  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+  if (!match) return null;
+  simLiveMap(state, match);
+  return match;
+}
+export function playMatchSeries(state) {
+  const match = state.schedule.find((m) => m.live && m.status === 'inProgress');
+  if (!match) return null;
+  simLiveSeries(state, match);
+  return match;
+}
 export function simulateNextMatchForUserTeam(state) { return advanceTimeToNextPhase(state); }
 export function simulateWeek(state) { return advanceTimeToNextPhase(state); }
 
@@ -429,18 +457,8 @@ export function getFacilityUpgradeCost(team, key) { return upgradeCost(team.faci
 export function applyPracticeAndFacilities(state, tid) {
   const team = state.teams.find((t) => t.tid === tid);
   if (!team) return;
-  const roster = state.players.filter((p) => p.tid === tid);
-  const focus = team.practicePlan.focus;
-  const intensity = team.practicePlan.intensity;
-  const fx = computeFacilityEffects(team);
-  const iMult = intensity === 'hard' ? 1.8 : intensity === 'light' ? 0.8 : 1.2;
-
-  for (const player of roster) {
-    if (PRACTICE_FOCUS.includes(focus)) player.attrs[focus] = clamp(player.attrs[focus] + (Math.random() * iMult + fx.aimGrowthBonus) * fx.practiceMultiplier, 30, 99);
-    player.roleSkills[player.currentRole] = clamp((player.roleSkills[player.currentRole] ?? 35) + 0.35 * iMult, 20, 99);
-    player.ovr = computePlayerOverall(player);
-  }
-  applyWeeklyTraining(state, tid, fx.practiceMultiplier, 1 + fx.chemistryStability / 100);
+  applyWeeklyTraining(state, tid, 1 + (team.facilities?.pcEquipment?.level || 1) * 0.08, 1 + (team.chemistry || 50) / 300);
+  team.teamCohesion = clamp((team.teamCohesion || 50) + 0.4, 0, 100);
 }
 
 export function postInitEnsure(state) {
