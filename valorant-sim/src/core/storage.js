@@ -65,24 +65,36 @@ export function setUiPrefs(next) {
 }
 
 export async function listSaves() {
-  await migrateLegacyLocalStorageIfNeeded();
-  const slots = await idbListSlots();
-  return slots
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .map((s) => ({
-      id: s.slotId,
-      saveName: s.meta?.name || 'Unnamed Save',
-      year: s.meta?.season || '-',
-      mode: s.meta?.mode || '-',
-      userName: s.meta?.userName || '',
-      updatedAt: s.updatedAt,
-      teamId: s.meta?.teamId ?? null
-    }));
+  try {
+    await migrateLegacyLocalStorageIfNeeded();
+    const slots = await idbListSlots();
+    return slots
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .map((s) => ({
+        id: s.slotId,
+        saveName: s.meta?.name || 'Unnamed Save',
+        year: s.meta?.season || '-',
+        mode: s.meta?.mode || '-',
+        userName: s.meta?.userName || '',
+        updatedAt: s.updatedAt,
+        teamId: s.meta?.teamId ?? null
+      }));
+  } catch (error) {
+    console.error(error);
+    emitStorageError('Could not access save list. IndexedDB is unavailable.');
+    return [];
+  }
 }
 
 export async function loadSave(id) {
-  await migrateLegacyLocalStorageIfNeeded();
-  return idbLoad(id);
+  try {
+    await migrateLegacyLocalStorageIfNeeded();
+    return await idbLoad(id);
+  } catch (error) {
+    console.error(error);
+    emitStorageError('Could not load save. IndexedDB is unavailable.');
+    return null;
+  }
 }
 
 export async function createWorld({ userTid, mode, saveName, userName }) {
@@ -118,15 +130,25 @@ export async function saveToSlot(world) {
 }
 
 export async function deleteSave(id) {
-  await migrateLegacyLocalStorageIfNeeded();
-  await idbDelete(id);
-  if (getActiveSaveId() === id) clearActiveSaveId();
+  try {
+    await migrateLegacyLocalStorageIfNeeded();
+    await idbDelete(id);
+    if (getActiveSaveId() === id) clearActiveSaveId();
+  } catch (error) {
+    console.error(error);
+    emitStorageError('Could not delete save. IndexedDB is unavailable.');
+  }
 }
 
 export async function deleteAllSaves() {
-  const saves = await listSaves();
-  await Promise.all(saves.map((s) => idbDelete(s.id)));
-  clearActiveSaveId();
+  try {
+    const saves = await listSaves();
+    await Promise.all(saves.map((s) => idbDelete(s.id)));
+    clearActiveSaveId();
+  } catch (error) {
+    console.error(error);
+    emitStorageError('Could not delete saves. IndexedDB is unavailable.');
+  }
 }
 
 export async function loadFromSlot() {

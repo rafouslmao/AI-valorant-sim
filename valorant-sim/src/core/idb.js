@@ -7,6 +7,10 @@ let dbPromise = null;
 export function openDB(dbName = DB_NAME, version = DB_VERSION) {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is not available in this environment'));
+      return;
+    }
     const req = indexedDB.open(dbName, version);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -16,6 +20,7 @@ export function openDB(dbName = DB_NAME, version = DB_VERSION) {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    req.onblocked = () => reject(new Error('IndexedDB open blocked'));
   });
   return dbPromise;
 }

@@ -31,11 +31,41 @@ import {
 
 const app = document.getElementById('app');
 
+const bootState = {
+  initStarted: false,
+  initDone: false,
+  initError: null
+};
+
+function showErrorPanel(errorLike) {
+  const err = errorLike instanceof Error ? errorLike : new Error(String(errorLike || 'Unknown error'));
+  console.error(err);
+  if (!app) return;
+  const stack = err.stack || '(no stack)';
+  app.innerHTML = `<div class="start-screen"><section class="card"><h1>Application Error</h1><p class="error">${err.message}</p><pre>${stack}</pre></section></div>`;
+}
+
+window.addEventListener('error', (event) => {
+  showErrorPanel(event.error || event.message || 'Unhandled window error');
+});
+window.addEventListener('unhandledrejection', (event) => {
+  showErrorPanel(event.reason || 'Unhandled promise rejection');
+});
+
+function renderCareerLoading(path) {
+  const route = path.replace(/^\//, '') || 'home';
+  const tab = ['player', 'coach'].includes(route) ? 'players' : ['team'].includes(route) ? 'teams' : route;
+  renderCareerLayout(app, tab, (main) => {
+    main.innerHTML = '<h1>Loading…</h1><p>Initializing save storage and loading your career.</p>';
+  }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction, onSimTournament: simulateTournamentAction }, {});
+}
+
 async function renderCareer(path, params) {
-  let state = getWorld();
-  if (!state) state = await hydrateWorldFromStorage();
-  if (!state) return;
-  setWorld(state);
+  const state = getWorld();
+  if (!state) {
+    renderCareerLoading(path);
+    return;
+  }
 
   const route = path.replace(/^\//, '');
   const tab = ['player', 'coach'].includes(route) ? 'players' : ['team'].includes(route) ? 'teams' : route;
@@ -65,12 +95,47 @@ async function renderCareer(path, params) {
   }, { onSimNext: simulateNextAction, onSimWeek: simulateWeekAction, onSimTournament: simulateTournamentAction }, getLayoutBadges(state));
 }
 
-async function renderApp() {
-  if (!ensureRouteGuards()) return;
-  const { path, params } = parseHash();
-  if (path === '/start') return renderStartPage(app);
-  await renderCareer(path, params);
+async function initAsync() {
+  if (bootState.initStarted) return;
+  bootState.initStarted = true;
+  try {
+    const state = await hydrateWorldFromStorage();
+    if (state) setWorld(state);
+    bootState.initDone = true;
+    bootState.initError = null;
+  } catch (error) {
+    bootState.initError = error;
+    showErrorPanel(error);
+  }
+  route();
 }
 
-window.addEventListener('hashchange', () => { renderApp(); });
-renderApp();
+async function route() {
+  try {
+    if (!ensureRouteGuards()) return;
+    const { path, params } = parseHash();
+
+    if (path === '/start') {
+      await renderStartPage(app);
+      return;
+    }
+
+    if (!bootState.initDone) {
+      renderCareerLoading(path);
+      initAsync();
+      return;
+    }
+
+    if (bootState.initError) {
+      showErrorPanel(bootState.initError);
+      return;
+    }
+
+    await renderCareer(path, params);
+  } catch (error) {
+    showErrorPanel(error);
+  }
+}
+
+window.addEventListener('hashchange', () => { route(); });
+route();
