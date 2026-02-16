@@ -103,6 +103,13 @@ function initAgentPool(primaryRole, seedKey) {
   return { primaryRole: normalizedRole, affinities };
 }
 
+
+function normalizeRoles(input) {
+  const raw = Array.isArray(input) ? input : (typeof input === 'string' ? input.split(/[\/,|]/) : []);
+  const roles = Array.from(new Set(raw.map((r) => cleanRole(r)).filter(Boolean)));
+  return roles.length ? roles : ['Flex'];
+}
+
 function cleanRole(value) {
   const v = String(value || '').toLowerCase();
   if (v === 'duelist') return 'Duelist';
@@ -113,7 +120,7 @@ function cleanRole(value) {
 }
 
 function createImportedPlayer(seedPlayer) {
-  const roles = Array.from(new Set((seedPlayer.roles || []).map((r) => cleanRole(r))));
+  const roles = normalizeRoles(seedPlayer.roles || seedPlayer.role || seedPlayer.primaryRole);
   const primaryRole = cleanRole(seedPlayer.primaryRole || roles[0]);
   const seedKey = `${seedPlayer.name}-${seedPlayer.teamName || 'FA'}`;
   const attrs = genAttributes(seedKey);
@@ -141,7 +148,7 @@ function createImportedPlayer(seedPlayer) {
     secondaryRoleTag: (seedPlayer.tags || [])[0] || 'None',
     roleSkills: Object.fromEntries(ROLES.map((r) => [r, seededRange(hashNum(`${seedPlayer.name}-${r}`), r === primaryRole ? 60 : 35, r === primaryRole ? 90 : 75)])),
     agentPool: initAgentPool(primaryRole, seedKey),
-    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal', roleFocus: role },
+    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal', roleFocus: primaryRole },
     currentContract: {
       salaryPerYear: salary,
       yearsRemaining: seedPlayer.freeAgent ? 0 : seededRange(hashNum(`${seedPlayer.name}-years`), 1, 3),

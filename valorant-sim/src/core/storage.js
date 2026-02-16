@@ -6,8 +6,12 @@ const LEGACY_SAVES_KEY = 'valorantSim.saves';
 const ACTIVE_KEY = 'valorantSim.activeSlot';
 const ACTIVE_KEY_LEGACY = 'valorantSim.activeSaveId';
 const UI_PREFS_KEY = 'valorantSim.uiPrefs';
+const LOCAL_INDEX_KEY = 'valorantSim.localSlots';
+const LOCAL_SLOT_PREFIX = 'valorantSim.local.slot.';
+const LOCAL_LOG_PREFIX = 'valorantSim.local.logs.';
 
 let migrationPromise = null;
+let idbUsable = null;
 
 function emitStorageError(message) {
   window.dispatchEvent(new CustomEvent('storage-error', { detail: message }));
@@ -15,6 +19,108 @@ function emitStorageError(message) {
 
 function safeParse(raw, fallback) {
   try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+function getLocalIndex() {
+  return safeParse(localStorage.getItem(LOCAL_INDEX_KEY), []);
+}
+
+function setLocalIndex(index) {
+  localStorage.setItem(LOCAL_INDEX_KEY, JSON.stringify(index));
+}
+
+function splitWorldForLocalStorage(world) {
+  const copy = structuredClone(world || {});
+  const matchLogs = {};
+  copy.schedule = (copy.schedule || []).map((m) => {
+    if (!m?.result?.maps?.length) return m;
+    const lightMaps = [];
+    const heavyMaps = [];
+    for (const map of m.result.maps) {
+      const { rounds, playerStats, keyMoments, ecoSummary, ...rest } = map || {};
+      lightMaps.push({ ...rest, roundsCount: Array.isArray(rounds) ? rounds.length : 0 });
+      heavyMaps.push({ rounds: rounds || [], playerStats: playerStats || {}, keyMoments: keyMoments || [], ecoSummary: ecoSummary || {} });
+    }
+    matchLogs[m.id] = { maps: heavyMaps };
+    return { ...m, live: null, result: { ...m.result, maps: lightMaps } };
+  });
+  return { slim: copy, matchLogs };
+}
+
+function mergeWorldFromLocalStorage(world, matchLogs) {
+  if (!world?.schedule || !matchLogs) return world;
+  world.schedule = world.schedule.map((m) => {
+    const log = matchLogs[m.id];
+    if (!log?.maps?.length || !m?.result?.maps?.length) return m;
+    const maps = m.result.maps.map((map, i) => ({ ...map, ...(log.maps[i] || {}) }));
+    return { ...m, result: { ...m.result, maps } };
+  });
+  return world;
+}
+
+function updateLocalIndex(world, slotId) {
+  const index = getLocalIndex().filter((s) => s.id !== slotId);
+  index.push({
+    id: slotId,
+    saveName: world?.meta?.saveName || 'Unnamed Save',
+    year: world?.meta?.year || '-',
+    mode: world?.meta?.mode || '-',
+    userName: world?.meta?.userName || '',
+    teamId: world?.userTid ?? null,
+    updatedAt: Date.now(),
+    backend: 'localStorage-minimal'
+  });
+  index.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  setLocalIndex(index);
+}
+
+function saveLocalSlot(slotId, world) {
+  const { slim, matchLogs } = splitWorldForLocalStorage(world);
+  const slimKey = `${LOCAL_SLOT_PREFIX}${slotId}`;
+  const logsKey = `${LOCAL_LOG_PREFIX}${slotId}`;
+  const slimRaw = JSON.stringify(slim);
+  const logsRaw = JSON.stringify(matchLogs);
+
+  try {
+    localStorage.setItem(slimKey, slimRaw);
+    localStorage.setItem(logsKey, logsRaw);
+  } catch (error) {
+    try {
+      localStorage.setItem(slimKey, slimRaw);
+      localStorage.removeItem(logsKey);
+    } catch (error2) {
+      throw error2;
+    }
+  }
+
+  updateLocalIndex(world, slotId);
+}
+
+function loadLocalSlot(slotId) {
+  const slimRaw = localStorage.getItem(`${LOCAL_SLOT_PREFIX}${slotId}`);
+  if (!slimRaw) return null;
+  const slim = safeParse(slimRaw, null);
+  if (!slim) return null;
+  const logs = safeParse(localStorage.getItem(`${LOCAL_LOG_PREFIX}${slotId}`), {});
+  return mergeWorldFromLocalStorage(slim, logs);
+}
+
+function deleteLocalSlot(slotId) {
+  localStorage.removeItem(`${LOCAL_SLOT_PREFIX}${slotId}`);
+  localStorage.removeItem(`${LOCAL_LOG_PREFIX}${slotId}`);
+  const next = getLocalIndex().filter((s) => s.id !== slotId);
+  setLocalIndex(next);
+}
+
+async function detectIdbUsable() {
+  if (idbUsable != null) return idbUsable;
+  try {
+    await idbListSlots();
+    idbUsable = true;
+  } catch {
+    idbUsable = false;
+  }
+  return idbUsable;
 }
 
 async function migrateLegacyLocalStorageIfNeeded() {
@@ -27,17 +133,18 @@ async function migrateLegacyLocalStorageIfNeeded() {
       localStorage.removeItem(LEGACY_SAVES_KEY);
       return;
     }
-    try {
-      for (const save of legacy) {
-        const slotId = save.id || uid('save');
-        save.id = slotId;
-        await idbSave(slotId, save);
+
+    const useIdb = await detectIdbUsable();
+    for (const save of legacy) {
+      const slotId = save.id || uid('save');
+      save.id = slotId;
+      if (useIdb) {
+        try { await idbSave(slotId, save); } catch { saveLocalSlot(slotId, save); }
+      } else {
+        saveLocalSlot(slotId, save);
       }
-      localStorage.removeItem(LEGACY_SAVES_KEY);
-    } catch (error) {
-      console.error(error);
-      emitStorageError('Legacy saves could not be fully migrated to IndexedDB.');
     }
+    localStorage.removeItem(LEGACY_SAVES_KEY);
   })();
   return migrationPromise;
 }
@@ -65,36 +172,43 @@ export function setUiPrefs(next) {
 }
 
 export async function listSaves() {
+  await migrateLegacyLocalStorageIfNeeded();
+  const local = getLocalIndex();
   try {
-    await migrateLegacyLocalStorageIfNeeded();
-    const slots = await idbListSlots();
-    return slots
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-      .map((s) => ({
+    if (await detectIdbUsable()) {
+      const slots = await idbListSlots();
+      const mapped = slots.map((s) => ({
         id: s.slotId,
         saveName: s.meta?.name || 'Unnamed Save',
         year: s.meta?.season || '-',
         mode: s.meta?.mode || '-',
         userName: s.meta?.userName || '',
         updatedAt: s.updatedAt,
-        teamId: s.meta?.teamId ?? null
+        teamId: s.meta?.teamId ?? null,
+        backend: 'indexedDB'
       }));
-  } catch (error) {
-    console.error(error);
-    emitStorageError('Could not access save list. IndexedDB is unavailable.');
-    return [];
+      return [...mapped, ...local.filter((l) => !mapped.find((m) => m.id === l.id))].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    }
+  } catch {
+    idbUsable = false;
   }
+  if (!local.length) emitStorageError('IndexedDB unavailable. Using localStorage minimal mode for saves.');
+  return local;
 }
 
 export async function loadSave(id) {
-  try {
-    await migrateLegacyLocalStorageIfNeeded();
-    return await idbLoad(id);
-  } catch (error) {
-    console.error(error);
-    emitStorageError('Could not load save. IndexedDB is unavailable.');
-    return null;
+  await migrateLegacyLocalStorageIfNeeded();
+  if (await detectIdbUsable()) {
+    try {
+      const save = await idbLoad(id);
+      if (save) return save;
+    } catch {
+      idbUsable = false;
+    }
   }
+  const local = loadLocalSlot(id);
+  if (!local) emitStorageError('Could not load save from storage.');
+  return local;
 }
 
 export async function createWorld({ userTid, mode, saveName, userName }) {
@@ -104,13 +218,23 @@ export async function createWorld({ userTid, mode, saveName, userName }) {
   world.id = id;
   world.meta.updatedAt = Date.now();
   try {
-    await idbSave(id, world);
+    if (await detectIdbUsable()) await idbSave(id, world);
+    else {
+      saveLocalSlot(id, world);
+      emitStorageError('IndexedDB unavailable. Save stored in localStorage minimal mode.');
+    }
     setActiveSaveId(id);
     return world;
   } catch (error) {
-    console.error(error);
-    emitStorageError('Could not save. IndexedDB is unavailable (private mode or blocked storage).');
-    throw error;
+    try {
+      saveLocalSlot(id, world);
+      emitStorageError('IndexedDB blocked. Save stored in localStorage minimal mode.');
+      setActiveSaveId(id);
+      return world;
+    } catch {
+      emitStorageError('Could not save. Storage quota exceeded in localStorage minimal mode.');
+      throw error;
+    }
   }
 }
 
@@ -121,34 +245,33 @@ export async function saveToSlot(world) {
   const slotId = world.id || getActiveSaveId() || uid('save');
   world.id = slotId;
   try {
-    await idbSave(slotId, world);
+    if (await detectIdbUsable()) await idbSave(slotId, world);
+    else saveLocalSlot(slotId, world);
   } catch (error) {
-    console.error(error);
-    emitStorageError('Could not save. IndexedDB is unavailable (private mode or blocked storage).');
-    throw error;
+    try {
+      saveLocalSlot(slotId, world);
+      emitStorageError('IndexedDB unavailable. Save persisted in localStorage minimal mode.');
+    } catch {
+      emitStorageError('Could not save. Storage quota exceeded in localStorage minimal mode.');
+      throw error;
+    }
   }
 }
 
 export async function deleteSave(id) {
-  try {
-    await migrateLegacyLocalStorageIfNeeded();
-    await idbDelete(id);
-    if (getActiveSaveId() === id) clearActiveSaveId();
-  } catch (error) {
-    console.error(error);
-    emitStorageError('Could not delete save. IndexedDB is unavailable.');
-  }
+  await migrateLegacyLocalStorageIfNeeded();
+  try { if (await detectIdbUsable()) await idbDelete(id); } catch { idbUsable = false; }
+  deleteLocalSlot(id);
+  if (getActiveSaveId() === id) clearActiveSaveId();
 }
 
 export async function deleteAllSaves() {
-  try {
-    const saves = await listSaves();
-    await Promise.all(saves.map((s) => idbDelete(s.id)));
-    clearActiveSaveId();
-  } catch (error) {
-    console.error(error);
-    emitStorageError('Could not delete saves. IndexedDB is unavailable.');
+  const saves = await listSaves();
+  for (const s of saves) {
+    try { if (s.backend === 'indexedDB') await idbDelete(s.id); } catch { idbUsable = false; }
+    deleteLocalSlot(s.id);
   }
+  clearActiveSaveId();
 }
 
 export async function loadFromSlot() {
