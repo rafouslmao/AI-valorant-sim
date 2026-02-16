@@ -141,7 +141,7 @@ function createImportedPlayer(seedPlayer) {
     secondaryRoleTag: (seedPlayer.tags || [])[0] || 'None',
     roleSkills: Object.fromEntries(ROLES.map((r) => [r, seededRange(hashNum(`${seedPlayer.name}-${r}`), r === primaryRole ? 60 : 35, r === primaryRole ? 90 : 75)])),
     agentPool: initAgentPool(primaryRole, seedKey),
-    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' },
+    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal', roleFocus: role },
     currentContract: {
       salaryPerYear: salary,
       yearsRemaining: seedPlayer.freeAgent ? 0 : seededRange(hashNum(`${seedPlayer.name}-years`), 1, 3),
@@ -335,7 +335,7 @@ export function generateWorld({ userTid, mode, saveName, userName }) {
 
   return {
     rules: { allowDuplicateAgentsSameTeam: true },
-    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, day: 1, mode, saveName, userName, godMode: false, createdAt: Date.now(), initializedYear: null },
+    meta: { leagueName: 'Valorant Global Circuit', year, week: 1, day: 1, currentDay: 1, mode, saveName, userName, godMode: false, createdAt: Date.now(), initializedYear: null },
     userTid,
     teams,
     players,

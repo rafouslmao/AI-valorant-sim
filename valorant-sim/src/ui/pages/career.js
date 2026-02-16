@@ -6,6 +6,7 @@ import { projectedTrainingImpact } from '../../core/training.js';
 import { acceptSponsorOffer, declineSponsorOffer } from '../../core/sponsors.js';
 import { addMessage, getUnreadCount } from '../../core/messages.js';
 import { formatMoney, uid } from '../../core/utils.js';
+import { applyPagination, applySort, createTableState, renderPagination, renderSortableHeader } from '../tableUtils.js';
 
 const MAP_PREFS = ['PermaBan', 'Dislike', 'Neutral', 'Like', 'PermaPick'];
 
@@ -14,6 +15,58 @@ function isCoachMode(state) { return state.meta.mode === 'Coach'; }
 function userCoach(state) { return state.coaches.find((c) => c.tid === state.userTid && c.staffRole === 'Head Coach'); }
 function starters(state, tid) { const t = state.teams.find((x) => x.tid === tid); return (t?.starters || []).map((pid) => state.players.find((p) => p.pid === pid && p.tid === tid)).filter(Boolean); }
 function bench(state, tid) { const sids = new Set((state.teams.find((x) => x.tid === tid)?.starters || [])); return state.players.filter((p) => p.tid === tid && !sids.has(p.pid)); }
+
+const TABLE_STATE = {
+  players: createTableState({ defaultSortKey: 'ovr', defaultSortDir: 'desc', pageSize: 25 }),
+  freeAgents: createTableState({ defaultSortKey: 'ovr', defaultSortDir: 'desc', pageSize: 25 })
+};
+
+function toggleStarter(world, playerId, teamId, makeStarter) {
+  const team = world.teams.find((t) => t.tid === teamId);
+  if (!team) return false;
+  const pid = String(playerId);
+  const current = (team.starters || []).map((id) => String(id));
+  const has = current.includes(pid);
+  if (makeStarter) {
+    if (has || current.length >= 5) return false;
+    team.starters = [...current, pid];
+    return true;
+  }
+  if (!has) return false;
+  team.starters = current.filter((id) => id !== pid);
+  return true;
+}
+
+function updateSortState(tableKey, nextKey) {
+  const state = TABLE_STATE[tableKey];
+  if (state.sortState.key === nextKey) state.sortState.dir = state.sortState.dir === 'asc' ? 'desc' : 'asc';
+  else {
+    state.sortState.key = nextKey;
+    state.sortState.dir = 'desc';
+  }
+  state.pageState.page = 1;
+}
+
+function renderPagedTable(main, config) {
+  const tState = TABLE_STATE[config.tableKey];
+  const sorted = applySort(config.rows, tState.sortState, config.accessors);
+  const { pageRows, meta } = applyPagination(sorted, tState.pageState);
+  tState.pageState.page = meta.page;
+
+  main.querySelector(config.tbodySelector).innerHTML = config.renderRows(pageRows);
+  main.querySelectorAll(`${config.headerSelector} [data-sort-key]`).forEach((th) => {
+    th.dataset.label = th.dataset.label || th.textContent;
+    renderSortableHeader(th, th.dataset.sortKey, tState.sortState, (key) => {
+      updateSortState(config.tableKey, key);
+      renderPagedTable(main, config);
+    });
+  });
+
+  renderPagination(main.querySelector(config.pagerSelector), meta.total, meta.page, meta.pageSize, (next) => {
+    tState.pageState = { ...tState.pageState, ...next };
+    renderPagedTable(main, config);
+  });
+}
 
 
 function derivedSummary(p) {
@@ -77,7 +130,7 @@ function renderStarterRows(state, tid) {
 function renderBenchRows(state, tid) {
   return bench(state, tid).map((p) => {
     const sm = derivedSummary(p);
-    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.utilityValue}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-start="${p.pid}">Move to Starting Lineup</button></td></tr>`;
+    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.utilityValue}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-start="${p.pid}">Move to Starter</button></td></tr>`;
   }).join('');
 }
 
@@ -109,8 +162,8 @@ export function renderRoster(main, state) {
 
   main.querySelectorAll('[data-to-bench]').forEach((btn) => btn.onclick = () => {
     mutateWorld((w) => {
-      const t = getUserTeam(w);
-      t.starters = t.starters.filter((pid) => pid !== btn.dataset.toBench);
+      const ok = toggleStarter(w, btn.dataset.toBench, w.userTid, false);
+      if (!ok) return;
       addMessage(w, { from: { type: 'system', name: 'Roster Ops' }, subject: 'Starter moved to bench', body: 'Roster change applied.', category: 'roster' });
     });
     window.dispatchEvent(new HashChangeEvent('hashchange'));
@@ -118,11 +171,8 @@ export function renderRoster(main, state) {
 
   main.querySelectorAll('[data-to-start]').forEach((btn) => btn.onclick = () => {
     mutateWorld((w) => {
-      const t = getUserTeam(w);
-      const pid = btn.dataset.toStart;
-      if (t.starters.includes(pid)) return;
-      if (t.starters.length >= 5) t.starters.shift();
-      t.starters.push(pid);
+      const ok = toggleStarter(w, btn.dataset.toStart, w.userTid, true);
+      if (!ok) return;
       addMessage(w, { from: { type: 'system', name: 'Roster Ops' }, subject: 'Bench player promoted', body: 'Starting lineup updated.', category: 'roster' });
     });
     window.dispatchEvent(new HashChangeEvent('hashchange'));
@@ -139,6 +189,7 @@ export function renderSchedule(main, state) {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const selectedYear = Number(params.get('year') || state.meta.year);
   const scope = params.get('scope') || 'my';
+  const view = params.get('view') || 'matches';
   const eventFilter = params.get('event') || 'all';
   const events = getTournamentsForYear(state, selectedYear);
   const eventName = (id) => events.find((e) => e.id === id)?.name || '-';
@@ -154,12 +205,16 @@ export function renderSchedule(main, state) {
     const status = m.status === 'final' ? 'finished' : m.status === 'inProgress' ? 'live' : 'upcoming';
     return `<tr><td>${eventName(m.eventId)}</td><td>${m.stage}</td><td>D${m.day}</td><td>${opp}</td><td>${status}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`;
   }).join('') || '<tr><td colspan="6">No matches.</td></tr>';
-  main.innerHTML = `<h1>Schedule</h1><div class="top-actions"><label>Year <input id="sc-year" type="number" value="${selectedYear}"/></label><label>Scope <select id="sc-scope"><option value="my" ${scope === 'my' ? 'selected' : ''}>My team only</option><option value="all" ${scope === 'all' ? 'selected' : ''}>All matches in selected tournament</option></select></label><label>Tournament <select id="sc-event"><option value="all">All</option>${events.map((e) => `<option value="${e.id}" ${eventFilter === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></label></div><table><tr><th>Event</th><th>Stage</th><th>Date</th><th>Opponent</th><th>Status</th><th></th></tr>${rows}</table>`;
+  const eventRows = events.map((e) => `<tr><td>${e.name}</td><td>${e.tier}</td><td>${e.regionScope === 'INTERNATIONAL' ? 'International' : e.region}</td><td>D${e.startDay}-D${e.endDay}</td><td>${e.status}</td><td><a href="#/match?id=${e.id}&event=1&year=${selectedYear}">Open</a></td></tr>`).join('') || '<tr><td colspan="6">No tournaments.</td></tr>';
+  const content = view === 'tournaments'
+    ? `<table><tr><th>Event</th><th>Tier</th><th>Region</th><th>Dates</th><th>Status</th><th></th></tr>${eventRows}</table>`
+    : `<table><tr><th>Event</th><th>Stage</th><th>Date</th><th>Opponent</th><th>Status</th><th></th></tr>${rows}</table>`;
+  main.innerHTML = `<h1>Schedule</h1><div class="top-actions"><label>View <select id="sc-view"><option value="matches" ${view === 'matches' ? 'selected' : ''}>My Matches</option><option value="tournaments" ${view === 'tournaments' ? 'selected' : ''}>Tournaments</option></select></label><label>Year <input id="sc-year" type="number" value="${selectedYear}"/></label><label>Scope <select id="sc-scope"><option value="my" ${scope === 'my' ? 'selected' : ''}>My team only</option><option value="all" ${scope === 'all' ? 'selected' : ''}>All matches in selected tournament</option></select></label><label>Tournament <select id="sc-event"><option value="all">All</option>${events.map((e) => `<option value="${e.id}" ${eventFilter === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></label></div>${content}`;
   const push = () => {
-    const q = new URLSearchParams({ year: main.querySelector('#sc-year').value, scope: main.querySelector('#sc-scope').value, event: main.querySelector('#sc-event').value });
+    const q = new URLSearchParams({ year: main.querySelector('#sc-year').value, scope: main.querySelector('#sc-scope').value, event: main.querySelector('#sc-event').value, view: main.querySelector('#sc-view').value });
     window.location.hash = `#/schedule?${q.toString()}`;
   };
-  ['#sc-year', '#sc-scope', '#sc-event'].forEach((sel) => main.querySelector(sel).onchange = push);
+  ['#sc-year', '#sc-scope', '#sc-event', '#sc-view'].forEach((sel) => main.querySelector(sel).onchange = push);
 }
 
 export function renderMatches(main, state) {
@@ -328,13 +383,32 @@ export function renderStrategy(main, state) {
 }
 
 export function renderPlayers(main, state) {
-  const players = [...state.players].sort((a, b) => b.ovr - a.ovr);
+  const players = [...state.players];
   const teamName = (tid) => {
     if (tid === null) return 'Free Agent';
     const team = state.teams.find((t) => t.tid === tid);
     return teamDisplayAbbrev(team);
   };
-  main.innerHTML = `<h1>Players</h1><table><tr><th>Image</th><th>Name</th><th>Team</th><th>Roles</th><th>Age</th><th>Nationality</th><th>OVR</th></tr>${players.map((p) => `<tr><td>${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:42px;height:42px;object-fit:cover;border-radius:6px;"/>` : '-'}</td><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${teamName(p.tid)}</td><td>${p.roles.join(', ')}</td><td>${p.age ?? '-'}</td><td>${String(p.nationality || '-').replaceAll('_', ' ')}</td><td>${p.ovr}</td></tr>`).join('')}</table>`;
+
+  main.innerHTML = `<h1>Players</h1><table><thead data-players-head><tr><th>Image</th><th data-sort-key="name">Name</th><th data-sort-key="team">Team</th><th data-sort-key="role">Role</th><th data-sort-key="age">Age</th><th data-sort-key="nationality">Nationality</th><th data-sort-key="salary">Expected Salary</th><th data-sort-key="ovr">OVR</th></tr></thead><tbody data-players-body></tbody></table><div class="table-pager" data-players-pager></div>`;
+
+  renderPagedTable(main, {
+    tableKey: 'players',
+    rows: players,
+    headerSelector: '[data-players-head]',
+    tbodySelector: '[data-players-body]',
+    pagerSelector: '[data-players-pager]',
+    accessors: {
+      name: (p) => p.name,
+      team: (p) => teamName(p.tid),
+      role: (p) => p.currentRole || p.primaryRole || p.roles?.[0] || '-',
+      age: (p) => Number(p.age || 0),
+      nationality: (p) => String(p.nationality || '-').replaceAll('_', ' '),
+      salary: (p) => Number(p.currentContract?.salaryPerYear || p.salary || 0),
+      ovr: (p) => Number(p.ovr || 0)
+    },
+    renderRows: (rows) => rows.map((p) => `<tr><td>${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:42px;height:42px;object-fit:cover;border-radius:6px;"/>` : '-'}</td><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${teamName(p.tid)}</td><td>${p.currentRole || p.primaryRole || p.roles?.[0] || '-'}</td><td>${p.age ?? '-'}</td><td>${String(p.nationality || '-').replaceAll('_', ' ')}</td><td>${formatMoney(Number(p.currentContract?.salaryPerYear || p.salary || 0))}/year</td><td>${p.ovr}</td></tr>`).join('')
+  });
 }
 
 function recommendationPayload(state, p) {
@@ -348,8 +422,26 @@ function recommendationPayload(state, p) {
 export function renderFreeAgents(main, state) {
   const coachMode = isCoachMode(state);
   const rosterCount = state.players.filter((p) => p.tid === state.userTid).length;
-  const freeAgents = state.players.filter((p) => p.tid === null).sort((a, b) => b.ovr - a.ovr).slice(0, 30);
-  main.innerHTML = `<h1>Free Agents</h1><p>Roster spots: ${rosterCount}/${ROSTER_LIMIT}</p><table><tr><th>Name</th><th>OVR</th><th>Expected Salary</th><th>Traits</th><th>Expected Role</th><th>Action</th></tr>${freeAgents.map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${p.ovr}</td><td>${formatMoney(marketValue(p))}</td><td>A:${p.ambition} L:${p.loyalty} G:${p.greed}</td><td>${p.preferredRole}</td><td>${coachMode ? `<button data-recommend="${p.pid}">Recommend to GM</button>` : `<button data-negotiate="${p.pid}">Negotiate</button>`}</td></tr>`).join('')}</table><div id="fa-extra"></div>`;
+  const freeAgents = state.players.filter((p) => p.tid === null);
+  main.innerHTML = `<h1>Free Agents</h1><p>Roster spots: ${rosterCount}/${ROSTER_LIMIT}</p><table><thead data-fa-head><tr><th data-sort-key="name">Name</th><th data-sort-key="age">Age</th><th data-sort-key="nationality">Nationality</th><th data-sort-key="salary">Expected Salary</th><th data-sort-key="ovr">OVR</th><th data-sort-key="role">Role</th><th data-sort-key="team">Team</th><th>Action</th></tr></thead><tbody data-fa-body></tbody></table><div class="table-pager" data-fa-pager></div><div id="fa-extra"></div>`;
+
+  renderPagedTable(main, {
+    tableKey: 'freeAgents',
+    rows: freeAgents,
+    headerSelector: '[data-fa-head]',
+    tbodySelector: '[data-fa-body]',
+    pagerSelector: '[data-fa-pager]',
+    accessors: {
+      name: (p) => p.name,
+      age: (p) => Number(p.age || 0),
+      nationality: (p) => String(p.nationality || '-').replaceAll('_', ' '),
+      salary: (p) => Number(marketValue(p) || 0),
+      ovr: (p) => Number(p.ovr || 0),
+      role: (p) => p.preferredRole || p.currentRole || '-',
+      team: () => 'Free Agent'
+    },
+    renderRows: (rows) => rows.map((p) => `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a></td><td>${p.age ?? '-'}</td><td>${String(p.nationality || '-').replaceAll('_', ' ')}</td><td>${formatMoney(marketValue(p))}/year</td><td>${p.ovr}</td><td>${p.preferredRole || p.currentRole || '-'}</td><td>Free Agent</td><td>${coachMode ? `<button data-recommend="${p.pid}">Recommend to GM</button>` : `<button data-negotiate="${p.pid}">Negotiate</button>`}</td></tr>`).join('')
+  });
 
   if (coachMode) {
     main.querySelectorAll('[data-recommend]').forEach((btn) => btn.onclick = () => {
@@ -359,25 +451,26 @@ export function renderFreeAgents(main, state) {
         const calc = recommendationPayload(w, p);
         const rec = { id: uid('rec'), playerId: p.pid, recommendedByCoachId: coach?.cid, timestamp: Date.now(), ...calc, status: 'pending' };
         w.recommendations.push(rec);
-        addMessage(w, { from: { type: 'coach', name: coach?.profile.name || 'Coach' }, subject: `Scouting Recommendation: ${p.name} (${p.currentRole})`, body: `I recommend we pursue ${p.name}. The profile fits our role needs and offers controllable contract risk.`, category: 'team', related: { playerId: p.pid, recommendationId: rec.id }, details: { bullets: [`Top strengths: Aim ${Math.round(p.attrs.aim)}, Utility ${Math.round(p.attrs.utility)}, Clutch ${Math.round(p.attrs.clutch)}`, `Risk notes: ${calc.riskLevel} risk due to age/market leverage.`], stats: [{ label: 'Fit Score', value: String(calc.fitScore) }, { label: 'Projected Performance', value: String(calc.projectedPerformance) }, { label: 'Estimated Salary', value: String(marketValue(p)) }], links: [{ label: 'View Player', route: `#/player?id=${p.pid}` }, { label: 'Open Free Agents', route: '#/free-agents' }], tags: ['team', 'scouting'] } });
+        addMessage(w, { from: { type: 'coach', name: state.meta.userName }, to: { type: 'gm', teamId: w.userTid }, subject: `Recommendation: ${p.name}`, body: `${p.name} (OVR ${p.ovr}) recommended. Fit ${calc.fitScore}. Cost/Value ${calc.costToValue}.`, category: 'recommendation', related: { playerId: p.pid, recommendationId: rec.id } });
       });
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   } else {
     main.querySelectorAll('[data-negotiate]').forEach((btn) => btn.onclick = () => {
       const p = state.players.find((x) => x.pid === btn.dataset.negotiate);
+      if (!p) return;
       const extra = main.querySelector('#fa-extra');
-      const val = marketValue(p);
-      extra.innerHTML = `<h3>Negotiation: ${p.name}</h3><div class="card"><label>Salary<input id="neg-salary" type="number" value="${val}" /></label><label>Years<select id="neg-years"><option>1</option><option selected>2</option><option>3</option></select></label><label>Role Promise<select id="neg-role"><option>starter</option><option>bench</option></select></label><label>Signing Bonus<input id="neg-bonus" type="number" value="${Math.round(val * 0.2)}" /></label><button id="submit-neg">Submit Offer</button><div id="neg-out"></div></div>`;
-      extra.querySelector('#submit-neg').onclick = () => mutateWorld((w) => {
-        let neg = Object.values(w.negotiations).find((n) => n.playerId === p.pid && n.teamId === w.userTid);
-        if (!neg) neg = startNegotiation(w, p.pid, w.userTid);
-        const offer = { salary: Number(extra.querySelector('#neg-salary').value), years: Number(extra.querySelector('#neg-years').value), rolePromise: extra.querySelector('#neg-role').value, signingBonus: Number(extra.querySelector('#neg-bonus').value) };
-        const res = submitOffer(w, neg.id, offer);
-        const t = getUserTeam(w);
-        const evalNow = evaluateOffer(w.players.find((x) => x.pid === p.pid), { team: t, teamReputation: t.teamReputation, rosterStrength: t.rosterStrength, facilitiesLevel: t.facilitiesLevel, financialStability: t.financialStability, coachQuality: t.coachQuality }, offer, p.tid);
-        extra.querySelector('#neg-out').innerHTML = `<p>Interest: ${evalNow.interest}/100</p><p>${res?.accepted ? 'Accepted' : res?.counter ? 'Countered' : 'Rejected'}</p><p>${(res?.reasons || evalNow.reasons || []).join(', ')}</p>`;
-      });
+      const base = marketValue(p);
+      const key = `${state.userTid}-${p.pid}`;
+      if (!state.negotiations[key]) mutateWorld((w) => startNegotiation(w, p.pid, state.userTid));
+      extra.innerHTML = `<h3>Negotiation: ${p.name}</h3><label>Salary / year <input id="neg-sal" type="number" value="${base}"/></label><label>Years <input id="neg-years" type="number" value="2" min="1" max="5"/></label><label>Role Promise <select id="neg-role"><option>starter</option><option>sixth</option><option>bench</option></select></label><label>Signing Bonus <input id="neg-bonus" type="number" value="${Math.round(base * 0.1)}"/></label><button id="neg-send">Send Offer</button><div id="neg-out"></div>`;
+      extra.querySelector('#neg-send').onclick = () => {
+        mutateWorld((w) => {
+          const offer = { salaryPerYear: Number(extra.querySelector('#neg-sal').value) || base, years: Number(extra.querySelector('#neg-years').value) || 2, rolePromise: extra.querySelector('#neg-role').value, signingBonus: Number(extra.querySelector('#neg-bonus').value) || 0 };
+          const evalNow = evaluateOffer(p, { teamReputation: getUserTeam(w).teamReputation, coachQuality: getUserTeam(w).coachQuality }, offer, p.tid);
+          const res = submitOffer(w, p.pid, w.userTid, offer);
+          extra.querySelector('#neg-out').innerHTML = `<p>Interest: ${evalNow.interest}/100</p><p>${res?.accepted ? 'Accepted' : res?.counter ? 'Countered' : 'Rejected'}</p><p>${(res?.reasons || evalNow.reasons || []).join(', ')}</p>`;
+        });
+      };
     });
   }
 }
@@ -409,10 +502,16 @@ export function renderFinances(main, state) {
 export function renderPractice(main, state) {
   const team = getUserTeam(state);
   const roster = state.players.filter((p) => p.tid === state.userTid);
-  main.innerHTML = `<h1>Practice</h1><table><tr><th>Player</th><th>Primary Focus</th><th>Secondary Focus</th><th>Intensity</th><th>Growth</th><th>Fatigue</th></tr>${roster.map((p) => { const proj = projectedTrainingImpact(p, team); return `<tr><td>${p.name}</td><td><select data-pf="${p.pid}">${TRAINING_PRIMARY.map((f) => `<option ${p.trainingPlan.primaryFocus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></td><td><select data-sf="${p.pid}">${TRAINING_SECONDARY.map((f) => `<option ${p.trainingPlan.secondaryFocus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></td><td><select data-int="${p.pid}">${INTENSITIES.map((i) => `<option ${p.trainingPlan.intensity === i ? 'selected' : ''}>${i}</option>`).join('')}</select></td><td>${proj.growthEstimate}</td><td>${proj.fatigueDelta}</td></tr>`; }).join('')}</table>`;
+  main.innerHTML = `<h1>Practice</h1><table><tr><th>Player</th><th>Primary Focus</th><th>Secondary Focus</th><th>Intensity</th><th>Role Focus</th><th>Growth</th><th>Fatigue</th></tr>${roster.map((p) => { const proj = projectedTrainingImpact(p, team); return `<tr><td>${p.name}</td><td><select data-pf="${p.pid}">${TRAINING_PRIMARY.map((f) => `<option ${p.trainingPlan.primaryFocus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></td><td><select data-sf="${p.pid}">${TRAINING_SECONDARY.map((f) => `<option ${p.trainingPlan.secondaryFocus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></td><td><select data-int="${p.pid}">${INTENSITIES.map((i) => `<option ${p.trainingPlan.intensity === i ? 'selected' : ''}>${i}</option>`).join('')}</select></td><td><select data-role-focus="${p.pid}">${ROLES.map((r) => `<option ${p.trainingPlan.roleFocus === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td>${proj.growthEstimate}</td><td>${proj.fatigueDelta}</td></tr>`; }).join('')}</table>`;
   main.querySelectorAll('[data-pf]').forEach((sel) => sel.onchange = () => mutateWorld((w) => { const p = w.players.find((x) => x.pid === sel.dataset.pf); if (p) p.trainingPlan.primaryFocus = sel.value; }));
   main.querySelectorAll('[data-sf]').forEach((sel) => sel.onchange = () => mutateWorld((w) => { const p = w.players.find((x) => x.pid === sel.dataset.sf); if (p) p.trainingPlan.secondaryFocus = sel.value; }));
   main.querySelectorAll('[data-int]').forEach((sel) => sel.onchange = () => mutateWorld((w) => { const p = w.players.find((x) => x.pid === sel.dataset.int); if (p) p.trainingPlan.intensity = sel.value; }));
+  main.querySelectorAll('[data-role-focus]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
+    const p = w.players.find((x) => x.pid === sel.dataset.roleFocus);
+    if (!p) return;
+    p.trainingPlan.roleFocus = sel.value;
+    if (p.currentRole !== sel.value) p.roleLearning = { role: sel.value, remaining: 5, penalty: 0.1 };
+  }));
 }
 
 export function renderFacilities(main, state) {
@@ -535,19 +634,35 @@ export function renderStats(main, state) {
 export function renderPlayerDetail(main, state, id) {
   const p = state.players.find((x) => x.pid === id);
   if (!p) return (main.innerHTML = '<p>Player not found.</p>');
-  const attrs = Object.entries(p.attrs).map(([k, v]) => `${k}: ${Math.round(v)}`).join(', ');
   const d = p.derived || {};
   const adv = p.attributes || {};
   const traitChips = (p.traits || []).map((t) => `<span class="pill">${t}</span>`).join(' ');
-  const affinityTop = Object.entries(p.agentPool.affinities || {}).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([a,v])=>`${a}(${v})`).join(', ');
-  const seasonRows = Object.entries(p.seasonStats || {}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([season, st]) => {
+  const affinityTop = Object.entries(p.agentPool.affinities || {}).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([a, v]) => `${a}(${v})`).join(', ');
+  const seasonRows = Object.entries(p.seasonStats || {}).sort((a, b) => Number(a[0]) - Number(b[0])).map(([season, st]) => {
     const kd = st.deaths ? (st.kills / st.deaths).toFixed(2) : st.kills.toFixed(2);
     const kpm = (st.kills / Math.max(1, st.mapsPlayed)).toFixed(2);
     const dpm = (st.deaths / Math.max(1, st.mapsPlayed)).toFixed(2);
     return `<tr><td>${season}</td><td>${st.kills}</td><td>${st.deaths}</td><td>${st.assists}</td><td>${kd}</td><td>${kpm}</td><td>${dpm}</td><td>${st.mapsPlayed}</td><td>${st.mostKillsInMap || 0}</td></tr>`;
   }).join('');
-  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p><details><summary>Advanced Stats</summary><pre>${JSON.stringify(adv, null, 2)}</pre></details><p>${attrs}</p>
-  <h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
+
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const tab = params.get('tab') || 'history';
+  const titleCase = (k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (m) => m.toUpperCase());
+  const group = (title, obj) => `<h4>${title}</h4><ul>${Object.entries(obj || {}).map(([k, v]) => `<li>${titleCase(k)}: <strong>${Math.round(v || 0)}</strong></li>`).join('') || '<li>None</li>'}</ul>`;
+
+  const agentByRole = {};
+  for (const [role, agents] of Object.entries({ Duelist: ['Jett', 'Raze', 'Reyna', 'Yoru', 'Neon', 'Iso', 'Phoenix'], Initiator: ['Sova', 'Skye', 'Breach', 'KAY/O', 'Fade', 'Gekko'], Controller: ['Omen', 'Brimstone', 'Astra', 'Viper', 'Harbor', 'Clove'], Sentinel: ['Killjoy', 'Cypher', 'Sage', 'Chamber', 'Deadlock'] })) {
+    agentByRole[role] = agents.map((a) => [a, adv.utilitySkill?.agentMastery?.[a]]).filter(([, v]) => v != null);
+  }
+
+  const tabs = `<div class="top-actions"><a href="#/player?id=${p.pid}&tab=history">History</a><a href="#/player?id=${p.pid}&tab=stats">Stats</a><a href="#/player?id=${p.pid}&tab=games">Games</a><a href="#/player?id=${p.pid}&tab=mastery">Agent Mastery</a></div>`;
+  let content = '';
+  if (tab === 'history') content = `<h3>History</h3><ul>${(p.history || []).slice(-30).map((h) => `<li>${h}</li>`).join('') || '<li>No history yet.</li>'}</ul>`;
+  if (tab === 'stats') content = `${group('Mechanics', adv.mechanics)}${group('Utility', { rawAim: adv.utilitySkill?.utilityTiming, tracking: adv.utilitySkill?.utilityPrecision, firstBulletAccuracy: adv.utilitySkill?.comboSync, recoilControl: adv.utilitySkill?.roleMastery, movement: adv.utilitySkill?.utilityTiming, crosshairDiscipline: adv.utilitySkill?.utilityPrecision })}${group('Decision Making', adv.decisionMaking)}${group('Mental', adv.mental)}${group('Teamplay', adv.teamplay)}${group('Physical', adv.physical)}`;
+  if (tab === 'games') content = `<h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
+  if (tab === 'mastery') content = `<h3>Agent Mastery</h3>${Object.entries(agentByRole).map(([role, list]) => `<h4>${role}s</h4><ul>${list.sort((a, b) => b[1] - a[1]).map(([a, v]) => `<li>${a}: <strong>${Math.round(v)}</strong></li>`).join('') || '<li>None</li>'}</ul>`).join('')}`;
+
+  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p>${tabs}${content}`;
 }
 
 export function renderCoachDetail(main, state, id) {

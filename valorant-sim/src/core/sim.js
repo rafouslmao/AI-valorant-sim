@@ -3,7 +3,7 @@ import { clamp, uid } from './utils.js';
 import { computePlayerOverall, createCoach, generateValorantIgn } from './generator.js';
 import { applyWeeklyTraining } from './training.js';
 import { aiResolveFreeAgency } from './contracts.js';
-import { initializeLiveSeries, playLiveRound, playLiveRounds, requestTimeoutForTeam, simLiveMap, simLiveSeries, simLiveToHalf } from './matchSimBo3.js';
+import { initializeLiveSeries, playLiveRound, playLiveRounds, requestTimeoutForTeam, simLiveMap, simLiveSeries, simLiveToHalf, simulateBo3Series } from './matchSimBo3.js';
 import { addMessage } from './messages.js';
 
 const REGION_MAP = ['Americas', 'EMEA', 'Pacific', 'China'];
@@ -108,7 +108,7 @@ function createTier2Player(team, role = 'Flex', state) {
     },
     roleSkills: buildRoleSkills(role),
     agentPool: buildAgentPool(role),
-    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal' },
+    trainingPlan: { primaryFocus: 'Mechanics', secondaryFocus: 'Role mastery', intensity: 'normal', roleFocus: role },
     currentContract: { salaryPerYear: rand(18000, 52000), yearsRemaining: rand(1, 2), signedWithTid: team.tid, buyoutClause: rand(45000, 110000), rolePromise: 'starter', signingBonus: rand(2000, 10000) },
     isStarter: true,
     history: [],
@@ -253,6 +253,9 @@ function attendanceScore(team, event, state) {
 function setupEventParticipation(state, event) {
   const eligible = state.teams.filter((t) => (event.regionScope === 'INTERNATIONAL' || t.region === event.region) && teamEligibleForEvent(t, event));
   const ranked = [...eligible].sort((a, b) => rankingScore(b) - rankingScore(a));
+  event.inviteSlots = 10;
+  event.mainSlots = 16;
+  event.qualSlots = Math.max(6, event.mainSlots - event.inviteSlots);
   const invited = ranked.slice(0, event.inviteSlots);
 
   for (const team of invited) {
@@ -265,6 +268,15 @@ function setupEventParticipation(state, event) {
   while (event.invitedAccepted.length < event.inviteSlots && inviteCursor < ranked.length) {
     const replacement = ranked[inviteCursor++];
     if (!event.invitedAccepted.includes(replacement.tid)) event.invitedAccepted.push(replacement.tid);
+  }
+
+  if (event.tier === 'A') {
+    const tier1Pool = ranked.filter((t) => t.tier === 'Tier 1' && !event.invitedAccepted.includes(t.tid));
+    while (event.invitedAccepted.filter((tid) => state.teams.find((x) => x.tid === tid)?.tier === 'Tier 1').length < 2 && tier1Pool.length) {
+      const pickT1 = tier1Pool.shift();
+      event.invitedAccepted.push(pickT1.tid);
+      event.invitedAccepted = [...new Set(event.invitedAccepted)].slice(0, event.inviteSlots);
+    }
   }
 
   const optInPool = ranked.filter((t) => !event.invitedAccepted.includes(t.tid));
@@ -288,35 +300,92 @@ function setupEventParticipation(state, event) {
 }
 
 function runQualifier(event, state) {
-  const entrants = [...event.qualifierParticipants];
+  const entrants = [...new Set(event.qualifierParticipants || [])];
   const scored = entrants.map((tid) => {
     const t = state.teams.find((x) => x.tid === tid);
     return { tid, score: rankingScore(t) + rand(-80, 80) };
   }).sort((a, b) => b.score - a.score);
   event.qualifiedTeams = scored.slice(0, event.qualSlots).map((x) => x.tid);
+  while (event.qualifiedTeams.length < event.qualSlots) {
+    const fallback = state.teams.filter((t) => !event.invitedAccepted.includes(t.tid) && !event.qualifiedTeams.includes(t.tid)).sort((a,b)=>rankingScore(b)-rankingScore(a))[0];
+    if (!fallback) break;
+    event.qualifiedTeams.push(fallback.tid);
+  }
   event.qualifiersBracket = scored.map((x, idx) => ({ seed: idx + 1, tid: x.tid, status: idx < event.qualSlots ? 'Qualified' : 'Eliminated' }));
   event.status = 'Qualifiers';
   event.phase = 'qualifiers_done';
 }
 
 function runMainEvent(event, state) {
-  const teams = [...event.invitedAccepted, ...event.qualifiedTeams].slice(0, event.mainSlots);
-  event.mainTeams = teams;
-  const ranked = teams.map((tid) => {
-    const t = state.teams.find((x) => x.tid === tid);
-    return { tid, score: rankingScore(t) + rand(-110, 110) };
-  }).sort((a, b) => b.score - a.score);
+  const teams = [...new Set([...(event.invitedAccepted || []), ...(event.qualifiedTeams || [])])].slice(0, 16);
+  while (teams.length < 16) {
+    const fallback = state.teams.filter((t) => !teams.includes(t.tid)).sort((a, b) => rankingScore(b) - rankingScore(a))[0];
+    if (!fallback) break;
+    teams.push(fallback.tid);
+  }
+  event.mainTeams = teams.slice(0, 16);
+  event.matches = event.matches || [];
+  state.schedule = state.schedule || [];
+
+  const swissRecords = new Map(event.mainTeams.map((tid) => [tid, { w: 0, l: 0 }]));
+  let day = Math.max(event.startDay + 2, state.meta.currentDay || state.meta.day || 1);
+
+  const addAndSim = (homeTid, awayTid, stage) => {
+    const match = {
+      id: uid('m'), season: state.meta.year, eventId: event.id, eventName: event.name, stage, day,
+      homeTid, awayTid, bestOf: 3, status: 'scheduled', played: false, live: null, result: null
+    };
+    state.schedule.push(match);
+    event.matches.push(match.id);
+    simulateBo3Series(state, match);
+    return match;
+  };
+
+  for (let round = 1; round <= 5; round++) {
+    const active = event.mainTeams.filter((tid) => {
+      const r = swissRecords.get(tid);
+      return r.w < 3 && r.l < 3;
+    });
+    active.sort((a, b) => (swissRecords.get(b).w - swissRecords.get(a).w) || (rankingScore(state.teams.find((t) => t.tid === b)) - rankingScore(state.teams.find((t) => t.tid === a))));
+    for (let i = 0; i < active.length - 1; i += 2) {
+      const homeTid = active[i];
+      const awayTid = active[i + 1];
+      const m = addAndSim(homeTid, awayTid, `Swiss R${round}`);
+      const winnerTid = m.result?.winnerTid;
+      const loserTid = winnerTid === homeTid ? awayTid : homeTid;
+      swissRecords.get(winnerTid).w += 1;
+      swissRecords.get(loserTid).l += 1;
+    }
+    day += 1;
+  }
+
+  const swissRanked = [...event.mainTeams].sort((a, b) => {
+    const ar = swissRecords.get(a); const br = swissRecords.get(b);
+    return (br.w - ar.w) || (ar.l - br.l) || (rankingScore(state.teams.find((t) => t.tid === b)) - rankingScore(state.teams.find((t) => t.tid === a)));
+  });
+  const playoff = swissRanked.slice(0, 8);
+
+  const qfPairs = [[0, 7], [3, 4], [1, 6], [2, 5]].map(([a, b]) => [playoff[a], playoff[b]]);
+  const sfTeams = [];
+  for (const [h, a] of qfPairs) { const m = addAndSim(h, a, 'Playoffs QF'); sfTeams.push(m.result.winnerTid); }
+  day += 1;
+  const sfWinners = [];
+  sfWinners.push(addAndSim(sfTeams[0], sfTeams[1], 'Playoffs SF').result.winnerTid);
+  sfWinners.push(addAndSim(sfTeams[2], sfTeams[3], 'Playoffs SF').result.winnerTid);
+  day += 1;
+  const final = addAndSim(sfWinners[0], sfWinners[1], 'Playoffs Final');
 
   const points = makePoints(event.pointsMultiplier);
-  let remainingPrize = event.prizePool;
   const payoutCurve = [0.34, 0.2, 0.12, 0.08, 0.06, 0.05, 0.04, 0.03];
+  let remainingPrize = event.prizePool;
   event.placements = [];
   event.payouts = [];
   event.pointsAwarded = [];
 
-  ranked.forEach((r, i) => {
-    const team = state.teams.find((t) => t.tid === r.tid);
-    const place = i + 1;
+  const ordered = [final.result.winnerTid, final.result.winnerTid === sfWinners[0] ? sfWinners[1] : sfWinners[0], ...swissRanked.filter((tid) => tid !== sfWinners[0] && tid !== sfWinners[1])];
+  ordered.forEach((tid, i) => {
+    const team = state.teams.find((t) => t.tid === tid);
+    if (!team) return;
     const payout = i < payoutCurve.length ? Math.round(event.prizePool * payoutCurve[i]) : 0;
     remainingPrize -= payout;
     const pts = points[i] || 2;
@@ -326,23 +395,18 @@ function runMainEvent(event, state) {
     team.eventsPlayedThisYear = (team.eventsPlayedThisYear || 0) + 1;
     team.lastEventPlayed = event.name;
     team.elo = clamp(Math.round((team.elo || 1200) + (i < 4 ? 20 : -8) + rand(-6, 8)), 900, 2400);
-    event.placements.push({ place, tid: r.tid });
-    event.payouts.push({ tid: r.tid, amount: payout });
-    event.pointsAwarded.push({ tid: r.tid, points: pts });
+    event.placements.push({ place: i + 1, tid });
+    event.payouts.push({ tid, amount: payout });
+    event.pointsAwarded.push({ tid, points: pts });
   });
 
-  if (remainingPrize > 0 && ranked[0]) {
-    const winner = state.teams.find((t) => t.tid === ranked[0].tid);
-    winner.cash += remainingPrize;
-    winner.winnings += remainingPrize;
-    const p = event.payouts.find((x) => x.tid === winner.tid);
-    p.amount += remainingPrize;
-  }
-
+  if (remainingPrize > 0 && event.payouts[0]) event.payouts[0].amount += remainingPrize;
   event.status = 'Finished';
   event.phase = 'finished';
-  event.endDay = Math.max(event.endDay, state.meta.day);
-  state.eventLog.push({ id: uid('elog'), year: state.meta.year, day: state.meta.day, type: 'event_finished', eventId: event.id, name: event.name });
+  state.meta.currentDay = day;
+  state.meta.day = day;
+  event.endDay = Math.max(event.endDay, day);
+  state.eventLog.push({ id: uid('elog'), year: state.meta.year, day, type: 'event_finished', eventId: event.id, name: event.name });
 }
 
 function chargeTravel(state, event) {
@@ -367,6 +431,7 @@ function ensureYearSetup(state) {
   for (const e of state.eventsByYear[year]) setupEventParticipation(state, e);
   state.meta.initializedYear = year;
   state.meta.day = 1;
+  state.meta.currentDay = 1;
   state.currentEventId = null;
 }
 
@@ -386,6 +451,7 @@ function advanceYearIfDone(state) {
   state.meta.year += 1;
   state.meta.week = 1;
   state.meta.day = 1;
+  state.meta.currentDay = 1;
   state.meta.initializedYear = null;
   state.currentEventId = null;
   for (const t of state.teams) {
@@ -428,6 +494,7 @@ export function advanceTimeToNextPhase(state) {
     return null;
   }
   state.meta.day = next.startDay;
+  state.meta.currentDay = state.meta.day;
   state.currentEventId = next.id;
   next.phase = 'pending';
   next.status = 'Upcoming';
@@ -445,6 +512,7 @@ export function simulateToNextTournament(state) {
     return null;
   }
   state.meta.day = next.startDay;
+  state.meta.currentDay = state.meta.day;
   state.currentEventId = next.id;
   return next;
 }
@@ -494,30 +562,40 @@ export function computeFacilityEffects(team) {
 export function openMatch(state, matchId = null) {
   const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.status !== 'final' && (m.homeTid === state.userTid || m.awayTid === state.userTid));
   if (!match) return null;
+  const currentDay = state.meta.currentDay || state.meta.day || 1;
+  if ((match.day || 1) > currentDay) return null;
   initializeLiveSeries(state, match);
   return match;
 }
 export function playMatchRounds(state, n = 6, matchId = null) {
   const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
+  const currentDay = state.meta.currentDay || state.meta.day || 1;
+  if ((match.day || 1) > currentDay) return null;
   playLiveRounds(state, match, n);
   return match;
 }
 export function playMatchToHalf(state, matchId = null) {
   const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
+  const currentDay = state.meta.currentDay || state.meta.day || 1;
+  if ((match.day || 1) > currentDay) return null;
   simLiveToHalf(state, match);
   return match;
 }
 export function playMatchMap(state, matchId = null) {
   const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
+  const currentDay = state.meta.currentDay || state.meta.day || 1;
+  if ((match.day || 1) > currentDay) return null;
   simLiveMap(state, match);
   return match;
 }
 export function playMatchSeries(state, matchId = null) {
   const match = matchId ? state.schedule.find((m) => m.id === matchId) : state.schedule.find((m) => m.live && m.status === 'inProgress');
   if (!match) return null;
+  const currentDay = state.meta.currentDay || state.meta.day || 1;
+  if ((match.day || 1) > currentDay) return null;
   simLiveSeries(state, match);
   return match;
 }

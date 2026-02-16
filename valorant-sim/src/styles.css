@@ -27,3 +27,9 @@ pre { white-space: pre-wrap; background: #0b1220; padding: 10px; border-radius: 
 
 .pill{display:inline-block;background:#253146;border:1px solid #3a4f72;color:#cfe1ff;padding:2px 8px;border-radius:999px;margin-right:6px;font-size:12px;}
 pre{white-space:pre-wrap;background:#101823;padding:10px;border-radius:8px;}
+
+.table-sort-btn{background:transparent;color:#e9edf5;border:0;padding:0;display:flex;align-items:center;gap:6px;font:inherit}
+.table-sort-indicator{opacity:.85;font-size:12px;min-width:10px;text-align:center}
+.table-pager{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0 18px;flex-wrap:wrap}
+.table-pager-left,.table-pager-right{display:flex;align-items:center;gap:8px}
+.table-pager-right input{width:72px;margin:0}

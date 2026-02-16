@@ -155,8 +155,10 @@ export function computeDerivedRatings(player, context = {}) {
   }
   derived.consistency = clamp(Math.round(raw.consistency), 0, 100);
   player.derived = derived;
-  const ovr = avg([derived.rifleImpact, derived.entryPower, derived.utilityValue, derived.clutchImpact, derived.adaptationScore]);
-  player.ovr = clamp(Math.round(ovr), 0, 100);
+  const core = avg([derived.rifleImpact, derived.entryPower, derived.utilityValue, derived.clutchImpact, derived.adaptationScore]);
+  const dm = Math.pow(clamp(core / 100, 0, 1), 0.78);
+  const scaled = 45 + dm * 52;
+  player.ovr = clamp(Math.round(scaled), 0, 97);
   player.attrs = player.attrs || {
     aim: Math.round(avg([at.mechanics.rawAim, at.mechanics.tracking, at.mechanics.firstBulletAccuracy])),
     utility: Math.round(avg([at.utilitySkill.utilityTiming, at.utilitySkill.utilityPrecision])),

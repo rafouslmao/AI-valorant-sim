@@ -119,6 +119,7 @@ export function normalizeWorld(world) {
   if (!world.eventLog) world.eventLog = [];
   if (!('currentEventId' in world)) world.currentEventId = null;
   if (!world.meta.day) world.meta.day = 1;
+  if (!world.meta.currentDay) world.meta.currentDay = world.meta.day;
   if (!('godMode' in world.meta)) world.meta.godMode = false;
   if (!('tierANoT1Streak' in world.meta)) world.meta.tierANoT1Streak = 0;
   ensureWorldStrategy(world);

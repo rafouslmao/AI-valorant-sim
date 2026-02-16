@@ -61,10 +61,20 @@ export function applyWeeklyTraining(state, tid, facilitiesModifier = 1, coachSki
     applyFocus(player, plan.primaryFocus, baseGain);
     if (plan.secondaryFocus && plan.secondaryFocus !== 'None') applyFocus(player, plan.secondaryFocus, baseGain * 0.55);
 
+    const roleFocus = plan.roleFocus || player.currentRole || player.primaryRole || 'Flex';
+    player.roleFamiliarity = player.roleFamiliarity || {};
+    player.roleFamiliarity[roleFocus] = clamp((player.roleFamiliarity[roleFocus] || 35) + baseGain * 0.9, 0, 100);
+    if (player.currentRole !== roleFocus) {
+      player.roleLearning = { role: roleFocus, remaining: Math.max(1, player.roleLearning?.remaining || 4), penalty: 0.1 };
+    }
+
     if (player.roleLearning?.remaining > 0) {
       player.roleLearning.remaining -= 1;
       player.roleMastery[player.roleLearning.role] = clamp((player.roleMastery[player.roleLearning.role] || 45) + 1.6 * intensityModifier, 0, 100);
-      if (player.roleLearning.remaining <= 0) player.roleLearning = null;
+      if (player.roleLearning.remaining <= 0) {
+        player.currentRole = player.roleLearning.role;
+        player.roleLearning = null;
+      }
     }
 
     team.fatigue = clamp((team.fatigue || 0) + (plan.intensity === 'hard' ? 4 : plan.intensity === 'normal' ? 2 : 1), 0, 100);
