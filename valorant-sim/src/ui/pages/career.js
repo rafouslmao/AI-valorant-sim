@@ -71,7 +71,16 @@ function renderPagedTable(main, config) {
 
 function derivedSummary(p) {
   const d = p.derived || {};
-  return { ovr: p.ovr || 0, rifleImpact: d.rifleImpact || 0, entryPower: d.entryPower || 0, utilityValue: d.utilityValue || 0, clutchImpact: d.clutchImpact || 0, consistency: d.consistency || 0 };
+  return {
+    ovr: p.ovr || 0,
+    ovrAttack: (p.ovrAttack ?? p.ovrs?.attack ?? p.ovr ?? 0),
+    ovrDefense: (p.ovrDefense ?? p.ovrs?.defense ?? p.ovr ?? 0),
+    rifleImpact: d.rifleImpact || 0,
+    entryPower: d.entryPower || 0,
+    utilityValue: d.utilityValue || 0,
+    clutchImpact: d.clutchImpact || 0,
+    consistency: d.consistency || 0
+  };
 }
 
 function roleLearningNote(p) {
@@ -124,13 +133,13 @@ export function renderHome(main, state) {
 function renderStarterRows(state, tid) {
   return starters(state, tid).map((p) => {
     const sm = derivedSummary(p);
-    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.entryPower}</td><td>${sm.utilityValue}</td><td>${sm.clutchImpact}</td><td>${sm.consistency}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><select data-secondary-tag="${p.pid}">${SECONDARY_ROLE_TAGS.map((r) => `<option ${p.secondaryRoleTag === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-bench="${p.pid}">Move to Bench</button></td></tr>`;
+    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.ovrAttack}</td><td>${sm.ovrDefense}</td><td>${sm.rifleImpact}</td><td>${sm.entryPower}</td><td>${sm.utilityValue}</td><td>${sm.clutchImpact}</td><td>${sm.consistency}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><select data-secondary-tag="${p.pid}">${SECONDARY_ROLE_TAGS.map((r) => `<option ${p.secondaryRoleTag === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-bench="${p.pid}">Move to Bench</button></td></tr>`;
   }).join('');
 }
 function renderBenchRows(state, tid) {
   return bench(state, tid).map((p) => {
     const sm = derivedSummary(p);
-    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.rifleImpact}</td><td>${sm.utilityValue}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-start="${p.pid}">Move to Starter</button></td></tr>`;
+    return `<tr><td><a href="#/player?id=${p.pid}">${p.name}</a><br/>${roleLearningNote(p)}</td><td>${sm.ovr}</td><td>${sm.ovrAttack}</td><td>${sm.ovrDefense}</td><td>${sm.rifleImpact}</td><td>${sm.utilityValue}</td><td><select data-primary-role="${p.pid}">${ROLES.map((r) => `<option ${p.primaryRole === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button data-to-start="${p.pid}">Move to Starter</button></td></tr>`;
   }).join('');
 }
 
@@ -141,9 +150,9 @@ export function renderRoster(main, state) {
   const warn = start.length < 5 ? '<p class="error">Starting lineup must have 5 players to start/play a match.</p>' : '';
   main.innerHTML = `<h1>Roster</h1>${warn}<p>Cohesion: <strong>${Math.round(team.teamCohesion || 0)}</strong> • Familiarity grows after maps played.</p>
   <h3>Starting Lineup (${start.length}/5)</h3>
-  <table><tr><th>Player</th><th>OVR</th><th>Rifle</th><th>Entry</th><th>Utility</th><th>Clutch</th><th>Consistency</th><th>Primary Role</th><th>Secondary Tag</th><th></th></tr>${renderStarterRows(state, team.tid)}</table>
+  <table><tr><th>Player</th><th>OVR</th><th>ATK</th><th>DEF</th><th>Rifle</th><th>Entry</th><th>Utility</th><th>Clutch</th><th>Consistency</th><th>Primary Role</th><th>Secondary Tag</th><th></th></tr>${renderStarterRows(state, team.tid)}</table>
   <h3>Bench (${benchList.length})</h3>
-  <table><tr><th>Player</th><th>OVR</th><th>Rifle</th><th>Utility</th><th>Primary Role</th><th></th></tr>${renderBenchRows(state, team.tid)}</table>`;
+  <table><tr><th>Player</th><th>OVR</th><th>ATK</th><th>DEF</th><th>Rifle</th><th>Utility</th><th>Primary Role</th><th></th></tr>${renderBenchRows(state, team.tid)}</table>`;
 
   main.querySelectorAll('[data-secondary-tag]').forEach((sel) => sel.onchange = () => mutateWorld((w) => {
     const p = w.players.find((x) => x.pid === sel.dataset.secondaryTag); if (p) p.secondaryRoleTag = sel.value;
@@ -679,7 +688,7 @@ export function renderPlayerDetail(main, state, id) {
   if (tab === 'games') content = `<h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
   if (tab === 'mastery') content = `<h3>Agent Mastery</h3>${Object.entries(agentByRole).map(([role, list]) => `<h4>${role}s</h4><ul>${list.sort((a, b) => b[1] - a[1]).map(([a, v]) => `<li>${a}: <strong>${Math.round(v)}</strong></li>`).join('') || '<li>None</li>'}</ul>`).join('')}`;
 
-  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p>${tabs}${content}`;
+  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} (ATK ${p.ovrAttack ?? p.ovrs?.attack ?? p.ovr}, DEF ${p.ovrDefense ?? p.ovrs?.defense ?? p.ovr}) • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p>${tabs}${content}`;
 }
 
 export function renderCoachDetail(main, state, id) {

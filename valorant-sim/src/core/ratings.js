@@ -155,10 +155,17 @@ export function computeDerivedRatings(player, context = {}) {
   }
   derived.consistency = clamp(Math.round(raw.consistency), 0, 100);
   player.derived = derived;
-  const core = avg([derived.rifleImpact, derived.entryPower, derived.utilityValue, derived.clutchImpact, derived.adaptationScore]);
-  const dm = Math.pow(clamp(core / 100, 0, 1), 0.78);
-  const scaled = 45 + dm * 52;
-  player.ovr = clamp(Math.round(scaled), 0, 97);
+  const atkCore = avg([derived.rifleImpact, derived.entryPower, derived.utilityValue, derived.tradeReliability, derived.opImpact]);
+  const defCore = avg([derived.anchorValue, derived.infoValue, derived.clutchImpact, derived.utilityValue, derived.tradeReliability]);
+  const overallCore = atkCore * 0.52 + defCore * 0.48;
+  const toOvr = (core) => {
+    const dm = Math.pow(clamp(core / 100, 0, 1), 0.78);
+    return clamp(Math.round(45 + dm * 52), 0, 97);
+  };
+  player.ovrAttack = toOvr(atkCore);
+  player.ovrDefense = toOvr(defCore);
+  player.ovr = toOvr(overallCore);
+  player.ovrs = { attack: player.ovrAttack, defense: player.ovrDefense, overall: player.ovr };
   player.attrs = player.attrs || {
     aim: Math.round(avg([at.mechanics.rawAim, at.mechanics.tracking, at.mechanics.firstBulletAccuracy])),
     utility: Math.round(avg([at.utilitySkill.utilityTiming, at.utilitySkill.utilityPrecision])),

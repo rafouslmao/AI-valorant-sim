@@ -2,6 +2,15 @@ import { ALL_AGENTS, MAP_POOL, ROLES } from './constants.js';
 import { computeDerivedRatings, ensureCoachAttributes, ensurePlayerSystems, mapFamiliarityTemplate } from './ratings.js';
 import { loadFromSlot, saveToSlot } from './storage.js';
 
+function normalizePlayerOvrFields(player) {
+  if (player.ovrAttack == null && player.ovrs?.attack != null) player.ovrAttack = player.ovrs.attack;
+  if (player.ovrDefense == null && player.ovrs?.defense != null) player.ovrDefense = player.ovrs.defense;
+  if (player.ovr == null && player.ovrs?.overall != null) player.ovr = player.ovrs.overall;
+  if (player.ovr == null && player.ovrAttack != null && player.ovrDefense != null) {
+    player.ovr = Math.round(player.ovrAttack * 0.52 + player.ovrDefense * 0.48);
+  }
+}
+
 function ensurePlayerShape(player) {
   if (!player.roles) player.roles = player.role ? [player.role] : [ROLES[0]];
   if (!player.currentRole) player.currentRole = player.roles[0];
@@ -27,6 +36,7 @@ function ensurePlayerShape(player) {
   }
   if (!player.roleFamiliarity) player.roleFamiliarity = Object.fromEntries(ROLES.map((r) => [r, Math.max(20, Math.round(player.roleSkills?.[r] ?? 45))]));
   for (const r of ROLES) if (player.roleFamiliarity[r] == null) player.roleFamiliarity[r] = Math.max(20, Math.round(player.roleSkills?.[r] ?? 45));
+  normalizePlayerOvrFields(player);
   ensurePlayerSystems(player, {});
 }
 

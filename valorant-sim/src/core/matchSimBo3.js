@@ -211,8 +211,8 @@ function lineupStrength(state, match, map, tid, side, buyProfileData) {
     const d = computeDerivedRatings(player, { fatigue: team.fatigue || 0, isPlayoffs: map.isPlayoffMap });
     const affinity = affinityScore(player, row.agent) / 100;
     const sideBase = side === 'atk'
-      ? d.entryPower * 0.34 + d.utilityValue * 0.2 + d.rifleImpact * 0.2 + d.tradeReliability * 0.13 + d.adaptationScore * 0.13
-      : d.anchorValue * 0.3 + d.infoValue * 0.22 + d.tradeReliability * 0.2 + d.clutchImpact * 0.14 + d.rifleImpact * 0.14;
+      ? d.entryPower * 0.3 + d.utilityValue * 0.2 + d.rifleImpact * 0.18 + d.opImpact * 0.2 + d.tradeReliability * 0.06 + d.adaptationScore * 0.06
+      : d.anchorValue * 0.27 + d.infoValue * 0.2 + d.tradeReliability * 0.18 + d.clutchImpact * 0.14 + d.rifleImpact * 0.11 + d.opImpact * 0.1;
     const variance = (Math.random() - 0.5) * (8 * ctx.varianceReducer) * (1 - (d.consistency || 55) / 160);
     return sum + sideBase * (0.9 + affinity * 0.1) + variance;
   }, 0) / Math.max(rows.length, 1);

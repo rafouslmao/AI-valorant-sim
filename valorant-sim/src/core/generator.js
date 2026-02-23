@@ -52,6 +52,10 @@ function genAttributes(seedKey) {
 
 export function computePlayerOverall(player) {
   if (!player.derived) computeDerivedRatings(player, {});
+  if (player.ovrAttack == null && player.ovrs?.attack != null) player.ovrAttack = player.ovrs.attack;
+  if (player.ovrDefense == null && player.ovrs?.defense != null) player.ovrDefense = player.ovrs.defense;
+  if (player.ovr == null && player.ovrs?.overall != null) player.ovr = player.ovrs.overall;
+  if (player.ovr == null) player.ovr = player.ovrAttack != null && player.ovrDefense != null ? Math.round(player.ovrAttack * 0.52 + player.ovrDefense * 0.48) : 55;
   return player.ovr || 55;
 }
 
