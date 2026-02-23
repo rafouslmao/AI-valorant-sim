@@ -1,4 +1,4 @@
-import { AGENT_ROLES, PRACTICE_FOCUS } from './constants.js';
+import { AGENT_ROLES, MAP_POOL, PRACTICE_FOCUS } from './constants.js';
 import { clamp, uid } from './utils.js';
 import { computePlayerOverall, createCoach, generateValorantIgn } from './generator.js';
 import { applyWeeklyTraining } from './training.js';
@@ -178,6 +178,8 @@ function generateYearCalendar(state, year) {
     status: 'Upcoming',
     phase: 'pending',
     qualifierParticipants: [],
+    openQualifierBracket: [],
+    closedQualifierBracket: [],
     qualifiersBracket: [],
     invitedAccepted: [],
     invitedDeclined: [],
@@ -188,43 +190,164 @@ function generateYearCalendar(state, year) {
     payouts: [],
     pointsAwarded: [],
     eligibilityTier: 'ALL',
+    invitesCount: 4,
     ...ev
   });
 
-  pushEvent({ name: 'VALORANT Masters 1', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 70, endDay: 85, prizePool: 1200000, pointsMultiplier: 2.2, travelCostFactor: 1.6, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 97 });
-  pushEvent({ name: 'BLAST Open', organizer: 'BLAST', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 108, endDay: 120, prizePool: 1150000, pointsMultiplier: 1.8, travelCostFactor: 1.4, inviteSlots: 10, qualSlots: 6, mainSlots: 16, prestige: 88 });
-  pushEvent({ name: 'IEM Global', organizer: 'IEM', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 145, endDay: 160, prizePool: 1050000, pointsMultiplier: 1.8, travelCostFactor: 1.5, inviteSlots: 11, qualSlots: 5, mainSlots: 16, prestige: 86 });
-  pushEvent({ name: 'EWC', organizer: 'EWC', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 188, endDay: 203, prizePool: 1800000, pointsMultiplier: 2.4, travelCostFactor: 1.7, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 99 });
-  pushEvent({ name: 'VALORANT Masters 2', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 230, endDay: 245, prizePool: 1300000, pointsMultiplier: 2.4, travelCostFactor: 1.6, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 99 });
-  pushEvent({ name: 'PGL Finals', organizer: 'PGL', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 266, endDay: 279, prizePool: 1100000, pointsMultiplier: 1.9, travelCostFactor: 1.5, inviteSlots: 10, qualSlots: 6, mainSlots: 16, prestige: 87 });
-  pushEvent({ name: 'VALORANT Champions', organizer: 'Riot', tier: 'S', regionScope: 'INTERNATIONAL', region: 'All', startDay: 320, endDay: 343, prizePool: 2400000, pointsMultiplier: 3.2, travelCostFactor: 1.9, inviteSlots: 12, qualSlots: 4, mainSlots: 16, prestige: 100 });
+  const sTypes = [
+    ['VALORANT Masters', 'Riot'], ['BLAST Open', 'BLAST'], ['IEM Global', 'IEM'],
+    ['EWC', 'EWC'], ['PGL Finals', 'PGL'], ['Champions', 'Riot']
+  ];
+  let cursor = 35 + rand(0, 10);
+  for (let i = 0; i < 6; i++) {
+    const [name, org] = sTypes[i % sTypes.length];
+    const len = rand(11, 15);
+    pushEvent({
+      name: `${name} ${i + 1}`,
+      organizer: org,
+      tier: 'S',
+      regionScope: 'INTERNATIONAL',
+      region: 'All',
+      startDay: cursor,
+      endDay: cursor + len,
+      prizePool: rand(900000, 2400000),
+      pointsMultiplier: 1.8 + Math.random() * 1.6,
+      travelCostFactor: 1.4 + Math.random() * 0.6,
+      inviteSlots: 4,
+      qualSlots: 12,
+      mainSlots: 16,
+      prestige: rand(84, 100),
+      invitesCount: 4
+    });
+    cursor += rand(34, 52);
+  }
 
-  const orgs = ['FISSURE', 'PGL Challengers', 'BLAST Rising', 'Open Circuit'];
-  let d = 20;
-  for (const r of REGION_MAP) {
-    for (let i = 0; i < 4; i++) {
+  const aOrgs = ['FISSURE', 'PGL Challengers', 'BLAST Rising', 'Open Circuit'];
+  for (const region of REGION_MAP) {
+    let rd = 18 + rand(0, 10);
+    for (let i = 0; i < 3; i++) {
+      const len = rand(8, 12);
       pushEvent({
-        name: `${r} ${orgs[(i + r.length) % orgs.length]} ${i + 1}`,
-        organizer: orgs[(i + r.length) % orgs.length],
+        name: `${region} ${aOrgs[(i + region.length) % aOrgs.length]} ${i + 1}`,
+        organizer: aOrgs[(i + region.length) % aOrgs.length],
         tier: 'A',
         eligibilityTier: 'ALL',
-        regionScope: 'REGIONAL',
-        region: r,
-        startDay: d,
-        endDay: d + 8,
-        prizePool: rand(90000, 420000),
-        pointsMultiplier: 1,
-        travelCostFactor: 0.9,
-        inviteSlots: rand(3, 8),
-        qualSlots: rand(5, 10),
-        mainSlots: 8,
-        prestige: rand(45, 72)
+        regionScope: rand(0, 100) < 30 ? 'INTERNATIONAL' : 'REGIONAL',
+        region,
+        startDay: rd,
+        endDay: rd + len,
+        prizePool: rand(120000, 550000),
+        pointsMultiplier: 0.9 + Math.random() * 0.6,
+        travelCostFactor: 0.85 + Math.random() * 0.35,
+        inviteSlots: 4,
+        qualSlots: 12,
+        mainSlots: 16,
+        prestige: rand(48, 76),
+        invitesCount: 4
       });
-      d += rand(16, 30);
+      rd += rand(38, 62);
     }
   }
 
-  return events.sort((a, b) => a.startDay - b.startDay);
+  events.sort((a, b) => a.startDay - b.startDay);
+  for (let i = 1; i < events.length; i++) {
+    const prev = events[i - 1];
+    const cur = events[i];
+    if (cur.startDay <= prev.endDay + 2) {
+      const shift = (prev.endDay + 3) - cur.startDay;
+      cur.startDay += shift;
+      cur.endDay += shift;
+    }
+  }
+  return events;
+}
+
+function buildVeto(homeTeam, awayTeam) {
+  const maps = MAP_POOL.map((m) => m.id);
+  const score = (team, mapId) => (team?.mapRatings?.[mapId] || 50) + rand(-5, 5);
+  const banA = [...maps].sort((a, b) => score(homeTeam, a) - score(homeTeam, b))[0];
+  const banB = [...maps].filter((m) => m !== banA).sort((a, b) => score(awayTeam, a) - score(awayTeam, b))[0];
+  const pickA = [...maps].filter((m) => m !== banA && m !== banB).sort((a, b) => score(homeTeam, b) - score(homeTeam, a))[0];
+  const pickB = [...maps].filter((m) => m !== banA && m !== banB && m !== pickA).sort((a, b) => score(awayTeam, b) - score(awayTeam, a))[0];
+  const rem = maps.filter((m) => ![banA, banB, pickA, pickB].includes(m));
+  const banA2 = rem.sort((a, b) => score(homeTeam, a) - score(homeTeam, b))[0];
+  const banB2 = rem.filter((m) => m !== banA2).sort((a, b) => score(awayTeam, a) - score(awayTeam, b))[0];
+  const deciderMap = rem.find((m) => m !== banA2 && m !== banB2) || rem[0];
+  return { bansTeamA: [banA, banA2].filter(Boolean), bansTeamB: [banB, banB2].filter(Boolean), picksTeamA: [pickA].filter(Boolean), picksTeamB: [pickB].filter(Boolean), deciderMap };
+}
+
+function pickQualifierPool(state, event, ranked, invitedTids) {
+  const inRegion = (t) => event.regionScope === 'INTERNATIONAL' || t.region === event.region;
+  const nonInvited = ranked.filter((t) => !invitedTids.includes(t.tid) && inRegion(t));
+  const lowerT1 = nonInvited.filter((t) => t.tier === 'Tier 1').slice(0, 12).map((t) => t.tid);
+  const t2 = nonInvited.filter((t) => t.tier === 'Tier 2').map((t) => t.tid);
+  const pool = [...new Set([...lowerT1, ...t2])];
+  while (pool.length < 24) {
+    const fb = ranked.find((t) => !invitedTids.includes(t.tid) && !pool.includes(t.tid));
+    if (!fb) break;
+    pool.push(fb.tid);
+  }
+  while (pool.length < 24) {
+    const fbGlobal = state.teams.find((t) => !invitedTids.includes(t.tid) && !pool.includes(t.tid));
+    if (!fbGlobal) break;
+    pool.push(fbGlobal.tid);
+  }
+  return pool;
+}
+
+function runQualifierBrackets(event, state) {
+  const entrants = [...new Set(event.qualifierParticipants || [])];
+  let day = Math.max(1, event.startDay - 6);
+  event.openQualifierBracket = [];
+  event.closedQualifierBracket = [];
+  event.matches = event.matches || [];
+  state.schedule = state.schedule || [];
+
+  const addMatch = (homeTid, awayTid, stage) => {
+    const homeTeam = state.teams.find((t) => t.tid === homeTid);
+    const awayTeam = state.teams.find((t) => t.tid === awayTid);
+    const match = { id: uid('m'), season: state.meta.year, eventId: event.id, eventName: event.name, stage, day, homeTid, awayTid, bestOf: 3, status: 'scheduled', played: false, live: null, result: null, veto: buildVeto(homeTeam, awayTeam) };
+    state.schedule.push(match); event.matches.push(match.id); simulateBo3Series(state, match); match.result = match.result || {}; match.result.veto = match.veto; return match;
+  };
+
+  let openRound = entrants.slice();
+  let round = 1;
+  while (openRound.length > 16) {
+    const winners = [];
+    for (let i = 0; i + 1 < openRound.length; i += 2) {
+      const m = addMatch(openRound[i], openRound[i + 1], `Open Qual R${round}`);
+      winners.push(m.result.winnerTid);
+      event.openQualifierBracket.push({ round, homeTid: openRound[i], awayTid: openRound[i + 1], winnerTid: m.result.winnerTid, matchId: m.id });
+    }
+    openRound = winners;
+    round += 1;
+    day += 1;
+  }
+
+  const closedSeeds = [...openRound];
+  while (closedSeeds.length < 16) {
+    const fb = state.teams.filter((t) => !event.invitedAccepted.includes(t.tid) && !closedSeeds.includes(t.tid)).sort((a, b) => rankingScore(b) - rankingScore(a))[0];
+    if (!fb) break;
+    closedSeeds.push(fb.tid);
+  }
+
+  const closedRound = closedSeeds.slice(0, 16);
+  const winners = [];
+  const losers = [];
+  round = 1;
+  for (let i = 0; i + 1 < closedRound.length; i += 2) {
+    const m = addMatch(closedRound[i], closedRound[i + 1], `Closed Qual R${round}`);
+    winners.push(m.result.winnerTid);
+    losers.push(m.result.winnerTid === closedRound[i] ? closedRound[i + 1] : closedRound[i]);
+    event.closedQualifierBracket.push({ round, homeTid: closedRound[i], awayTid: closedRound[i + 1], winnerTid: m.result.winnerTid, matchId: m.id });
+  }
+  day += 1;
+
+  const topLosers = losers.sort((a, b) => rankingScore(state.teams.find((t) => t.tid === b)) - rankingScore(state.teams.find((t) => t.tid === a)));
+  event.qualifiedTeams = [...winners, ...topLosers].slice(0, event.qualSlots);
+  event.qualifiersBracket = event.closedQualifierBracket.slice();
+  event.phase = 'qualifiers_done';
+  event.status = 'Qualifiers';
 }
 
 function attendanceScore(team, event, state) {
@@ -253,41 +376,16 @@ function attendanceScore(team, event, state) {
 function setupEventParticipation(state, event) {
   const eligible = state.teams.filter((t) => (event.regionScope === 'INTERNATIONAL' || t.region === event.region) && teamEligibleForEvent(t, event));
   const ranked = [...eligible].sort((a, b) => rankingScore(b) - rankingScore(a));
-  event.inviteSlots = 10;
   event.mainSlots = 16;
-  event.qualSlots = Math.max(6, event.mainSlots - event.inviteSlots);
+  event.inviteSlots = Math.min(8, Math.max(2, event.invitesCount || 4));
+  event.qualSlots = Math.max(0, event.mainSlots - event.inviteSlots);
+
   const invited = ranked.slice(0, event.inviteSlots);
+  event.invitedAccepted = invited.map((t) => t.tid);
+  event.invitedDeclined = [];
 
-  for (const team of invited) {
-    const score = attendanceScore(team, event, state);
-    const threshold = event.tier === 'S' ? 35 : (team.tier === 'Tier 1' ? 60 : 48);
-    if (score > threshold) event.invitedAccepted.push(team.tid); else event.invitedDeclined.push(team.tid);
-  }
-
-  let inviteCursor = event.inviteSlots;
-  while (event.invitedAccepted.length < event.inviteSlots && inviteCursor < ranked.length) {
-    const replacement = ranked[inviteCursor++];
-    if (!event.invitedAccepted.includes(replacement.tid)) event.invitedAccepted.push(replacement.tid);
-  }
-
-  if (event.tier === 'A') {
-    const tier1Pool = ranked.filter((t) => t.tier === 'Tier 1' && !event.invitedAccepted.includes(t.tid));
-    while (event.invitedAccepted.filter((tid) => state.teams.find((x) => x.tid === tid)?.tier === 'Tier 1').length < 2 && tier1Pool.length) {
-      const pickT1 = tier1Pool.shift();
-      event.invitedAccepted.push(pickT1.tid);
-      event.invitedAccepted = [...new Set(event.invitedAccepted)].slice(0, event.inviteSlots);
-    }
-  }
-
-  const optInPool = ranked.filter((t) => !event.invitedAccepted.includes(t.tid));
-  for (const team of optInPool) {
-    const baseThreshold = event.tier === 'S' ? 25 : (team.tier === 'Tier 1' ? 52 : 42);
-    const score = attendanceScore(team, event, state);
-    if (score > baseThreshold) event.qualifierParticipants.push(team.tid);
-  }
-
-  const maxQual = Math.max(event.qualSlots * 3, event.qualSlots + 2);
-  event.qualifierParticipants = event.qualifierParticipants.slice(0, maxQual);
+  const qualifierPool = pickQualifierPool(state, event, ranked, event.invitedAccepted);
+  event.qualifierParticipants = qualifierPool;
   event.status = 'Upcoming';
 
   if (event.tier === 'A') {
@@ -295,25 +393,10 @@ function setupEventParticipation(state, event) {
     if (t1Count === 0) state.meta.tierANoT1Streak = (state.meta.tierANoT1Streak || 0) + 1;
     else state.meta.tierANoT1Streak = 0;
   }
-
-  buildEventMatches(state, event);
 }
 
 function runQualifier(event, state) {
-  const entrants = [...new Set(event.qualifierParticipants || [])];
-  const scored = entrants.map((tid) => {
-    const t = state.teams.find((x) => x.tid === tid);
-    return { tid, score: rankingScore(t) + rand(-80, 80) };
-  }).sort((a, b) => b.score - a.score);
-  event.qualifiedTeams = scored.slice(0, event.qualSlots).map((x) => x.tid);
-  while (event.qualifiedTeams.length < event.qualSlots) {
-    const fallback = state.teams.filter((t) => !event.invitedAccepted.includes(t.tid) && !event.qualifiedTeams.includes(t.tid)).sort((a,b)=>rankingScore(b)-rankingScore(a))[0];
-    if (!fallback) break;
-    event.qualifiedTeams.push(fallback.tid);
-  }
-  event.qualifiersBracket = scored.map((x, idx) => ({ seed: idx + 1, tid: x.tid, status: idx < event.qualSlots ? 'Qualified' : 'Eliminated' }));
-  event.status = 'Qualifiers';
-  event.phase = 'qualifiers_done';
+  runQualifierBrackets(event, state);
 }
 
 function runMainEvent(event, state) {
@@ -331,13 +414,18 @@ function runMainEvent(event, state) {
   let day = Math.max(event.startDay + 2, state.meta.currentDay || state.meta.day || 1);
 
   const addAndSim = (homeTid, awayTid, stage) => {
+    const homeTeam = state.teams.find((t) => t.tid === homeTid);
+    const awayTeam = state.teams.find((t) => t.tid === awayTid);
     const match = {
       id: uid('m'), season: state.meta.year, eventId: event.id, eventName: event.name, stage, day,
-      homeTid, awayTid, bestOf: 3, status: 'scheduled', played: false, live: null, result: null
+      homeTid, awayTid, bestOf: 3, status: 'scheduled', played: false, live: null, result: null,
+      veto: buildVeto(homeTeam, awayTeam)
     };
     state.schedule.push(match);
     event.matches.push(match.id);
     simulateBo3Series(state, match);
+    match.result = match.result || {};
+    match.result.veto = match.veto;
     return match;
   };
 
@@ -620,3 +708,11 @@ export function applyPracticeAndFacilities(state, tid) {
 export function postInitEnsure(state) {
   ensureYearSetup(state);
 }
+
+// MANUAL TEST CHECKLIST
+// 1) New world: only 5 tier-2 teams per region are created.
+// 2) Start year: calendar shows multiple Tier S and Tier A events with dynamic dates.
+// 3) For a Tier S event: 4 top teams are invited, rest qualify through open+closed qualifiers, main event has 16 teams.
+// 4) Schedule tab: "My Matches" lists upcoming qualifiers and main event matches in chronological order.
+// 5) Match view: shows map veto, 2-0/2-1 series score, and per-map results.
+// 6) Advancing days cannot skip future matches; matches are simulated in date order.

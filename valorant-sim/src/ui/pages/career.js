@@ -284,12 +284,16 @@ export function renderMatchView(main, state, id) {
     const event = (state.eventsByYear?.[year] || []).find((e) => e.id === id);
     if (!event) return (main.innerHTML = '<p>Event not found.</p>');
     const linkedMatches = (state.schedule || []).filter((m) => m.eventId === event.id).sort((a, b) => a.day - b.day);
+    const oq = (event.openQualifierBracket || []).map((q) => `<tr><td>R${q.round}</td><td>${teamName(q.homeTid)} vs ${teamName(q.awayTid)}</td><td>${teamName(q.winnerTid)}</td></tr>`).join('') || '<tr><td colspan="3">Not started</td></tr>';
+    const cq = (event.closedQualifierBracket || []).map((q) => `<tr><td>R${q.round}</td><td>${teamName(q.homeTid)} vs ${teamName(q.awayTid)}</td><td>${teamName(q.winnerTid)}</td></tr>`).join('') || '<tr><td colspan="3">Not started</td></tr>';
     main.innerHTML = `<h1>${event.name}</h1>
     <p>${event.organizer} • Tier ${event.tier} • ${event.regionScope === 'INTERNATIONAL' ? 'International' : event.region}</p>
     <p>Status: ${event.status}</p><p>Date: D${event.startDay} - D${event.endDay}</p>
     <h3>Invited Teams</h3>
     <p><strong>Accepted:</strong> ${(event.invitedAccepted || []).map(teamName).join(', ') || 'None'}</p>
-    <p><strong>Declined:</strong> ${(event.invitedDeclined || []).map(teamName).join(', ') || 'None'}</p>
+    <h3>Qualified Teams</h3><p>${(event.qualifiedTeams || []).map(teamName).join(', ') || 'None yet'}</p>
+    <h3>Open Qualifier</h3><table><tr><th>Round</th><th>Match</th><th>Winner</th></tr>${oq}</table>
+    <h3>Closed Qualifier</h3><table><tr><th>Round</th><th>Match</th><th>Winner</th></tr>${cq}</table>
     <h3>Matches</h3>
     <table><tr><th>Stage</th><th>Day</th><th>Match</th><th>Status</th><th></th></tr>${linkedMatches.map((m) => `<tr><td>${m.stage}</td><td>D${m.day}</td><td>${teamName(m.homeTid)} vs ${teamName(m.awayTid)}</td><td>${m.status === 'final' ? 'finished' : m.status === 'inProgress' ? 'live' : 'upcoming'}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`).join('') || '<tr><td colspan="5">No matches generated.</td></tr>'}</table>
     <h3>Main Event Placements</h3>
@@ -309,6 +313,18 @@ export function renderMatchView(main, state, id) {
   const live = match.live;
   const map = live?.maps?.[live.mapIndex];
   const roundRows = (map?.rounds || []).slice(-8).map((r) => `<tr><td>${r.roundIndex}</td><td>${teamName(r.winnerTid)}</td><td>${r.winType}</td><td>${r.firstKill ? teamName(r.firstKill.tid) : '-'}</td><td>${r.plant ? 'Plant' : '-'}</td><td>${r.defuse ? 'Defuse' : '-'}</td></tr>`).join('') || '<tr><td colspan="6">No rounds yet.</td></tr>';
+  const veto = match.result?.veto || match.veto;
+  const allPlayers = [...new Set((match.result?.maps || []).flatMap((m) => Object.keys(m.playerStats?.[match.homeTid] || {}).concat(Object.keys(m.playerStats?.[match.awayTid] || {}))))];
+  const seriesRows = allPlayers.map((pid) => {
+    let k = 0; let d = 0; let a = 0;
+    for (const mm of (match.result?.maps || [])) {
+      const st = mm.playerStats?.[match.homeTid]?.[pid] || mm.playerStats?.[match.awayTid]?.[pid];
+      if (!st) continue;
+      k += st.kills || 0; d += st.deaths || 0; a += st.assists || 0;
+    }
+    const p = state.players.find((x) => x.pid === pid);
+    return `<tr><td>${p?.name || pid}</td><td>${k}</td><td>${d}</td><td>${a}</td></tr>`;
+  }).join('') || '<tr><td colspan="4">No series stats yet.</td></tr>';
 
   main.innerHTML = `<h1>${teamName(match.homeTid)} vs ${teamName(match.awayTid)}</h1>
   <p>${match.eventName} • ${match.stage} • Day D${match.day}</p>
@@ -321,7 +337,8 @@ export function renderMatchView(main, state, id) {
   <h3>Live Map</h3>
   <p>${map ? `${map.mapName} • Score ${map.score[match.homeTid]}-${map.score[match.awayTid]}` : 'Not started'}</p>
   <table><tr><th>Round</th><th>Winner</th><th>Type</th><th>First Kill</th><th>Plant</th><th>Defuse</th></tr>${roundRows}</table>
-  ${match.result?.maps?.length ? `<h3>Completed Maps</h3><ul>${match.result.maps.map((m) => `<li>${m.mapName}: ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}</li>`).join('')}</ul>` : ''}
+  ${veto ? `<h3>Veto</h3><p>Bans A: ${(veto.bansTeamA || []).join(', ') || '-'} • Bans B: ${(veto.bansTeamB || []).join(', ') || '-'}</p><p>Picks A: ${(veto.picksTeamA || []).join(', ') || '-'} • Picks B: ${(veto.picksTeamB || []).join(', ') || '-'} • Decider: ${veto.deciderMap || '-'}</p>` : ''}
+  ${match.result?.maps?.length ? `<h3>Completed Maps</h3><ul>${match.result.maps.map((m) => `<li>${m.mapName}: ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}</li>`).join('')}</ul><h3>Series Boxscore</h3><table><tr><th>Player</th><th>K</th><th>D</th><th>A</th></tr>${seriesRows}</table>` : ''}
   <p><a href="#/schedule">Back to Schedule</a></p>`;
 
   const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));

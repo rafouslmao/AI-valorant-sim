@@ -277,7 +277,7 @@ function createTier2Teams(startTid, usedNames, usedCodes) {
   const teams = [];
   let tid = startTid;
   for (const region of T2_REGIONS) {
-    for (let i = 1; i <= 24; i++) {
+    for (let i = 1; i <= 5; i++) {
       const name = createTier2TeamName(region, usedNames);
       const team = createTeam({ name, region }, tid++, 'Tier 2');
       team.abbrev = teamAbbrevFromName(name, usedCodes);
