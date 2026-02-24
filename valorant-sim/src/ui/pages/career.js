@@ -6,7 +6,7 @@ import { projectedTrainingImpact } from '../../core/training.js';
 import { acceptSponsorOffer, declineSponsorOffer } from '../../core/sponsors.js';
 import { addMessage, getUnreadCount } from '../../core/messages.js';
 import { formatMoney, uid } from '../../core/utils.js';
-import { applyPagination, applySort, createTableState, renderPagination, renderSortableHeader } from '../tableUtils.js';
+import { applySort, createTableState, paginate, renderPagination, renderSortableHeader } from '../tableHelpers.js';
 
 const MAP_PREFS = ['PermaBan', 'Dislike', 'Neutral', 'Like', 'PermaPick'];
 
@@ -50,7 +50,7 @@ function updateSortState(tableKey, nextKey) {
 function renderPagedTable(main, config) {
   const tState = TABLE_STATE[config.tableKey];
   const sorted = applySort(config.rows, tState.sortState, config.accessors);
-  const { pageRows, meta } = applyPagination(sorted, tState.pageState);
+  const { pageRows, meta } = paginate(sorted, tState.pageState);
   tState.pageState.page = meta.page;
 
   main.querySelector(config.tbodySelector).innerHTML = config.renderRows(pageRows);
@@ -188,6 +188,19 @@ export function renderRoster(main, state) {
   });
 }
 
+// MANUAL TEST CHECKLIST
+// 1) Free Agents/Players tables sort by Name, Age, Salary, OVR and paginate (25/50/100).
+// 2) Schedule shows My Matches and All Tournaments with match result/status fields.
+// 3) Veto panel shows phased bans/picks and legal map set with no duplicates.
+
+function renderVetoBoard(state, match, veto) {
+  if (!veto) return '';
+  const teamName = (tid) => state.teams.find((t) => t.tid === tid)?.abbrev || tid;
+  const left = (veto.actions || []).filter((a) => a.tid === veto.teamA).map((a) => `<tr><td>${a.phase}</td><td>${a.mapId}${a.side ? ` (${a.side})` : ''}</td></tr>`).join('') || '<tr><td colspan="2">-</td></tr>';
+  const right = (veto.actions || []).filter((a) => a.tid === veto.teamB).map((a) => `<tr><td>${a.phase}</td><td>${a.mapId}${a.side ? ` (${a.side})` : ''}</td></tr>`).join('') || '<tr><td colspan="2">-</td></tr>';
+  return `<h3>Veto</h3><p>Map order: ${(veto.order || []).join(' -> ')} • Legal: ${veto.legal?.uniqueMaps ? 'Yes' : 'No'}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"><table><tr><th colspan="2">${teamName(veto.teamA)}</th></tr><tr><th>Phase</th><th>Action</th></tr>${left}</table><table><tr><th colspan="2">${teamName(veto.teamB)}</th></tr><tr><th>Phase</th><th>Action</th></tr>${right}</table></div>`;
+}
+
 function matchResultText(state, m) {
   if (m.status !== 'final') return m.status === 'inProgress' ? 'In Progress' : 'Scheduled';
   return m.result?.maps?.map((map) => `${map.mapName} ${map.finalScore[m.homeTid]}-${map.finalScore[m.awayTid]}`).join(' | ') || m.result?.summary || 'Final';
@@ -212,13 +225,15 @@ export function renderSchedule(main, state) {
     const oppTid = m.homeTid === state.userTid ? m.awayTid : m.homeTid;
     const opp = isMy ? teamName(oppTid) : `${teamName(m.homeTid)} vs ${teamName(m.awayTid)}`;
     const status = m.status === 'final' ? 'finished' : m.status === 'inProgress' ? 'live' : 'upcoming';
-    return `<tr><td>${eventName(m.eventId)}</td><td>${m.stage}</td><td>D${m.day}</td><td>${opp}</td><td>${status}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`;
+    const wl = m.status === 'final' ? ((m.result?.winnerTid === state.userTid) ? 'W' : ((m.homeTid === state.userTid || m.awayTid === state.userTid) ? 'L' : '-')) : '-';
+    const seriesScore = m.status === 'final' ? `${m.result?.seriesScore?.[m.homeTid] || 0}-${m.result?.seriesScore?.[m.awayTid] || 0}` : '-';
+    return `<tr><td>D${m.day}</td><td>${eventName(m.eventId)}</td><td>${opp}</td><td>${m.stage || '-'}</td><td>BO3</td><td>${status}</td><td>${wl}</td><td>${seriesScore}</td><td><a href="#/match?id=${m.id}">Open</a></td></tr>`;
   }).join('') || '<tr><td colspan="6">No matches.</td></tr>';
   const eventRows = events.map((e) => `<tr><td>${e.name}</td><td>${e.tier}</td><td>${e.regionScope === 'INTERNATIONAL' ? 'International' : e.region}</td><td>D${e.startDay}-D${e.endDay}</td><td>${e.status}</td><td><a href="#/match?id=${e.id}&event=1&year=${selectedYear}">Open</a></td></tr>`).join('') || '<tr><td colspan="6">No tournaments.</td></tr>';
   const content = view === 'tournaments'
     ? `<table><tr><th>Event</th><th>Tier</th><th>Region</th><th>Dates</th><th>Status</th><th></th></tr>${eventRows}</table>`
-    : `<table><tr><th>Event</th><th>Stage</th><th>Date</th><th>Opponent</th><th>Status</th><th></th></tr>${rows}</table>`;
-  main.innerHTML = `<h1>Schedule</h1><div class="top-actions"><label>View <select id="sc-view"><option value="matches" ${view === 'matches' ? 'selected' : ''}>My Matches</option><option value="tournaments" ${view === 'tournaments' ? 'selected' : ''}>Tournaments</option></select></label><label>Year <input id="sc-year" type="number" value="${selectedYear}"/></label><label>Scope <select id="sc-scope"><option value="my" ${scope === 'my' ? 'selected' : ''}>My team only</option><option value="all" ${scope === 'all' ? 'selected' : ''}>All matches in selected tournament</option></select></label><label>Tournament <select id="sc-event"><option value="all">All</option>${events.map((e) => `<option value="${e.id}" ${eventFilter === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></label></div>${content}`;
+    : `<table><tr><th>Day</th><th>Tournament</th><th>Opponent</th><th>Stage</th><th>Format</th><th>Status</th><th>W/L</th><th>Score</th><th></th></tr>${rows}</table>`;
+  main.innerHTML = `<h1>Schedule</h1><div class="top-actions"><label>View <select id="sc-view"><option value="matches" ${view === 'matches' ? 'selected' : ''}>My Matches</option><option value="tournaments" ${view === 'tournaments' ? 'selected' : ''}>Tournaments</option></select></label><label>Year <input id="sc-year" type="number" value="${selectedYear}"/></label><label>Scope <select id="sc-scope"><option value="my" ${scope === 'my' ? 'selected' : ''}>My Matches</option><option value="all" ${scope === 'all' ? 'selected' : ''}>All Matches</option></select></label><label>Tournament <select id="sc-event"><option value="all">All</option>${events.map((e) => `<option value="${e.id}" ${eventFilter === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></label></div>${content}`;
   const push = () => {
     const q = new URLSearchParams({ year: main.querySelector('#sc-year').value, scope: main.querySelector('#sc-scope').value, event: main.querySelector('#sc-event').value, view: main.querySelector('#sc-view').value });
     window.location.hash = `#/schedule?${q.toString()}`;
@@ -346,7 +361,7 @@ export function renderMatchView(main, state, id) {
   <h3>Live Map</h3>
   <p>${map ? `${map.mapName} • Score ${map.score[match.homeTid]}-${map.score[match.awayTid]}` : 'Not started'}</p>
   <table><tr><th>Round</th><th>Winner</th><th>Type</th><th>First Kill</th><th>Plant</th><th>Defuse</th></tr>${roundRows}</table>
-  ${veto ? `<h3>Veto</h3><p>Bans A: ${(veto.bansTeamA || []).join(', ') || '-'} • Bans B: ${(veto.bansTeamB || []).join(', ') || '-'}</p><p>Picks A: ${(veto.picksTeamA || []).join(', ') || '-'} • Picks B: ${(veto.picksTeamB || []).join(', ') || '-'} • Decider: ${veto.deciderMap || '-'}</p>` : ''}
+  ${renderVetoBoard(state, match, veto)}
   ${match.result?.maps?.length ? `<h3>Completed Maps</h3><ul>${match.result.maps.map((m) => `<li>${m.mapName}: ${m.finalScore[match.homeTid]}-${m.finalScore[match.awayTid]}</li>`).join('')}</ul><h3>Series Boxscore</h3><table><tr><th>Player</th><th>K</th><th>D</th><th>A</th></tr>${seriesRows}</table>` : ''}
   <p><a href="#/schedule">Back to Schedule</a></p>`;
 
@@ -682,13 +697,14 @@ export function renderPlayerDetail(main, state, id) {
   }
 
   const tabs = `<div class="top-actions"><a href="#/player?id=${p.pid}&tab=history">History</a><a href="#/player?id=${p.pid}&tab=stats">Stats</a><a href="#/player?id=${p.pid}&tab=games">Games</a><a href="#/player?id=${p.pid}&tab=mastery">Agent Mastery</a></div>`;
+  const mechanicsQuick = adv.mechanics ? `<h4>Mechanics</h4><p>Raw Aim: ${Math.round(adv.mechanics.rawAim || 0)} • Tracking: ${Math.round(adv.mechanics.tracking || 0)} • First Bullet Accuracy: ${Math.round(adv.mechanics.firstBulletAccuracy || 0)} • Recoil Control: ${Math.round(adv.mechanics.recoilControl || 0)} • Movement: ${Math.round(adv.mechanics.movement || 0)} • Crosshair Discipline: ${Math.round(adv.mechanics.crosshairDiscipline || 0)} • Operator Aim: ${Math.round(adv.mechanics.operatorAim || 0)}</p>` : ''; 
   let content = '';
   if (tab === 'history') content = `<h3>History</h3><ul>${(p.history || []).slice(-30).map((h) => `<li>${h}</li>`).join('') || '<li>No history yet.</li>'}</ul>`;
   if (tab === 'stats') content = `${group('Mechanics', adv.mechanics)}${group('Utility', { rawAim: adv.utilitySkill?.utilityTiming, tracking: adv.utilitySkill?.utilityPrecision, firstBulletAccuracy: adv.utilitySkill?.comboSync, recoilControl: adv.utilitySkill?.roleMastery, movement: adv.utilitySkill?.utilityTiming, crosshairDiscipline: adv.utilitySkill?.utilityPrecision })}${group('Decision Making', adv.decisionMaking)}${group('Mental', adv.mental)}${group('Teamplay', adv.teamplay)}${group('Physical', adv.physical)}`;
   if (tab === 'games') content = `<h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;
   if (tab === 'mastery') content = `<h3>Agent Mastery</h3>${Object.entries(agentByRole).map(([role, list]) => `<h4>${role}s</h4><ul>${list.sort((a, b) => b[1] - a[1]).map(([a, v]) => `<li>${a}: <strong>${Math.round(v)}</strong></li>`).join('') || '<li>None</li>'}</ul>`).join('')}`;
 
-  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} (ATK ${p.ovrAttack ?? p.ovrs?.attack ?? p.ovr}, DEF ${p.ovrDefense ?? p.ovrs?.defense ?? p.ovr}) • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p>${tabs}${content}`;
+  main.innerHTML = `${p.imageURL ? `<img src="${p.imageURL}" alt="${p.name}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin-bottom:8px;"/>` : ''}<h1>${p.name}</h1><p>Team: ${p.tid === null ? 'Free Agent' : state.teams.find((t) => t.tid === p.tid)?.name}</p><p>Age: ${p.age ?? '-'} • Nationality: ${String(p.nationality || '-').replaceAll('_', ' ')}</p><p>Traits: ${traitChips || '-'}</p><h3>Summary</h3><p>OVR ${p.ovr} (ATK ${p.ovrAttack ?? p.ovrs?.attack ?? p.ovr}, DEF ${p.ovrDefense ?? p.ovrs?.defense ?? p.ovr}) • Rifle ${d.rifleImpact || 0} • Entry ${d.entryPower || 0} • Utility ${d.utilityValue || 0} • Clutch ${d.clutchImpact || 0} • Adaptation ${d.adaptationScore || 0}</p><p>Roles: ${p.roles.join(', ')} | Primary: ${p.primaryRole} | Current: ${p.currentRole}</p><p>Contract: ${formatMoney(p.currentContract.salaryPerYear)} / ${p.currentContract.yearsRemaining}y (${p.currentContract.rolePromise})</p><p>Agent Affinity: ${affinityTop}</p>${mechanicsQuick}${tabs}${content}`;
 }
 
 export function renderCoachDetail(main, state, id) {

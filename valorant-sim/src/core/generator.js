@@ -1,7 +1,7 @@
 import { AGENT_ROLES, FACILITY_CONFIG, MAP_POOL, PRACTICE_FOCUS, ROLES } from './constants.js';
 import { REAL_IMPORTED_PLAYERS, REAL_TEAM_DATABASE } from './database.js';
 import { computeDerivedRatings, createPlayerAttributes, ensureCoachAttributes, ensurePlayerSystems, mapFamiliarityTemplate } from './ratings.js';
-import { randInt, uid, weightedPick } from './utils.js';
+import { clamp, randInt, uid, weightedPick } from './utils.js';
 
 const nationalities = ['US', 'BR', 'AR', 'SE', 'DE', 'PL', 'JP', 'CN', 'FR', 'ES', 'KR'];
 const coachStyles = ['Structured', 'Loose', 'Reactive', 'Prep-heavy'];
@@ -123,6 +123,19 @@ function cleanRole(value) {
   return 'Flex';
 }
 
+function applyOperatorAimProfile(player, seedPlayer = {}) {
+  const mech = player.attributes?.mechanics;
+  if (!mech) return;
+  const tags = new Set((seedPlayer.tags || []).map((t) => String(t).toUpperCase()));
+  const roles = new Set((seedPlayer.roles || []).map((r) => String(r).toLowerCase()));
+  const isOper = tags.has('OPER') || roles.has('oper') || /oper|awp/i.test(seedPlayer.primaryRole || '');
+  if (isOper) {
+    mech.operatorAim = clamp(Math.round(mech.rawAim + randInt(3, 12)), 20, 100);
+  } else {
+    mech.operatorAim = clamp(Math.round(mech.rawAim + randInt(-10, 2)), 20, 100);
+  }
+}
+
 function createImportedPlayer(seedPlayer) {
   const roles = normalizeRoles(seedPlayer.roles || seedPlayer.role || seedPlayer.primaryRole);
   const primaryRole = cleanRole(seedPlayer.primaryRole || roles[0]);
@@ -166,6 +179,7 @@ function createImportedPlayer(seedPlayer) {
     history: [],
     seasonStats: {}
   };
+  applyOperatorAimProfile(player, seedPlayer);
   ensurePlayerSystems(player, {});
   return player;
 }
@@ -364,3 +378,8 @@ export function generateWorld({ userTid, mode, saveName, userName }) {
     sponsors: { active: [], offers: initialSponsorOffers(tier1Teams), history: [] }
   };
 }
+
+
+// MANUAL TEST CHECKLIST
+// 1) Imported OPER-tag players roll higher operatorAim than non-opers on average.
+// 2) Tier 2/random players still get operatorAim with slight trailing variance from rawAim.

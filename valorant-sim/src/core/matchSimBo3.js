@@ -5,6 +5,18 @@ import { computeDerivedRatings } from './ratings.js';
 const ROUND_TYPES = ['elim', 'spike', 'defuse', 'time'];
 const BUY_LABELS = ['ECO', 'HALF', 'FORCE', 'FULL'];
 const SIDE_SWITCH_ROUND = 12;
+const VETO_PHASES_BO3 = ['BAN_A1', 'BAN_B1', 'PICK_A1', 'SIDE_B1', 'PICK_B1', 'SIDE_A1', 'BAN_A2', 'BAN_B2', 'DECIDER_SIDE_A'];
+
+function applyVetoAction(actions, phase, actingTid, map, pool, payload = {}) {
+  if (!map) return pool;
+  if (!pool.find((m) => m.id === map.id)) return pool;
+  actions.push({ phase, tid: actingTid, mapId: map.id, ...payload });
+  if (phase.startsWith('BAN_') || phase.startsWith('PICK_')) {
+    return pool.filter((m) => m.id !== map.id);
+  }
+  return pool;
+}
+
 
 function roleFromLower(role) {
   const key = String(role || '').toLowerCase();
@@ -106,6 +118,19 @@ function resolveCompAssignments(state, team, starters, mapId) {
   }
 
   return assignment;
+}
+
+function operatorSkill(player) {
+  const mech = player?.attributes?.mechanics || {};
+  return 0.5 * (mech.rawAim ?? 50) + 0.5 * (mech.operatorAim ?? mech.rawAim ?? 50);
+}
+
+function teamTopOperatorSkill(state, tid) {
+  const team = state.teams.find((t) => t.tid === tid);
+  const starters = team?.starters || [];
+  const pool = state.players.filter((p) => p.tid === tid && (!starters.length || starters.includes(p.pid))).slice(0, 5);
+  if (!pool.length) return 50;
+  return Math.max(...pool.map((p) => operatorSkill(p)));
 }
 
 function affinityScore(player, agent) {
@@ -210,16 +235,21 @@ function lineupStrength(state, match, map, tid, side, buyProfileData) {
     const player = state.players.find((p) => p.pid === row.pid);
     const d = computeDerivedRatings(player, { fatigue: team.fatigue || 0, isPlayoffs: map.isPlayoffMap });
     const affinity = affinityScore(player, row.agent) / 100;
+    const opSkill = operatorSkill(player);
+    const opSpecialist = clamp((opSkill - 55) / 50, -0.2, 0.9);
     const sideBase = side === 'atk'
       ? d.entryPower * 0.3 + d.utilityValue * 0.2 + d.rifleImpact * 0.18 + d.opImpact * 0.2 + d.tradeReliability * 0.06 + d.adaptationScore * 0.06
       : d.anchorValue * 0.27 + d.infoValue * 0.2 + d.tradeReliability * 0.18 + d.clutchImpact * 0.14 + d.rifleImpact * 0.11 + d.opImpact * 0.1;
+    const opRoundAdj = (side === 'atk' ? 1 : 0.9) * opSpecialist * 4;
     const variance = (Math.random() - 0.5) * (8 * ctx.varianceReducer) * (1 - (d.consistency || 55) / 160);
-    return sum + sideBase * (0.9 + affinity * 0.1) + variance;
+    return sum + (sideBase + opRoundAdj) * (0.9 + affinity * 0.1) + variance;
   }, 0) / Math.max(rows.length, 1);
 
+  const topOp = Math.max(...rows.map((row) => operatorSkill(state.players.find((p) => p.pid === row.pid))), 50);
+  const teamOpMod = 1 + clamp((topOp - 70) / 280, -0.08, 0.14);
   const mapMod = 1 + (team.mapRatings?.[map.mapId] ?? 50) / 950;
   const sideMod = 1 + (side === 'atk' ? mapDef.atkBias : mapDef.defBias) * 0.5;
-  return playerImpact * mapMod * sideMod * buyPower(buyProfileData) * ctx.cohesionBonus * ctx.familiarityBonus;
+  return playerImpact * mapMod * sideMod * teamOpMod * buyPower(buyProfileData) * ctx.cohesionBonus * ctx.familiarityBonus;
 }
 
 function maybeTimeout(match, map, tid, roundIndex) {
@@ -323,22 +353,33 @@ export function buildVeto(match, state) {
   let pool = [...MAP_POOL];
   const actions = [];
 
-  const ban1 = mapChoice(teamA, pool, 'ban'); pool = pool.filter((m) => m.id !== ban1.id); actions.push({ step: 'A ban', tid: teamA.tid, mapId: ban1.id });
-  const ban2 = mapChoice(teamB, pool, 'ban'); pool = pool.filter((m) => m.id !== ban2.id); actions.push({ step: 'B ban', tid: teamB.tid, mapId: ban2.id });
-  const pick1 = mapChoice(teamA, pool, 'pick'); pool = pool.filter((m) => m.id !== pick1.id); actions.push({ step: 'A pick', tid: teamA.tid, mapId: pick1.id });
-  const side1 = Math.random() > 0.5 ? 'ATK' : 'DEF'; actions.push({ step: 'B side', tid: teamB.tid, mapId: pick1.id, side: side1 });
-  const pick2 = mapChoice(teamB, pool, 'pick'); pool = pool.filter((m) => m.id !== pick2.id); actions.push({ step: 'B pick', tid: teamB.tid, mapId: pick2.id });
-  const side2 = Math.random() > 0.5 ? 'ATK' : 'DEF'; actions.push({ step: 'A side', tid: teamA.tid, mapId: pick2.id, side: side2 });
-  const ban3 = mapChoice(teamA, pool, 'ban'); pool = pool.filter((m) => m.id !== ban3.id); actions.push({ step: 'A ban', tid: teamA.tid, mapId: ban3.id });
-  const ban4 = mapChoice(teamB, pool, 'ban'); pool = pool.filter((m) => m.id !== ban4.id); actions.push({ step: 'B ban', tid: teamB.tid, mapId: ban4.id });
+  const ban1 = mapChoice(teamA, pool, 'ban');
+  pool = applyVetoAction(actions, 'BAN_A1', teamA.tid, ban1, pool);
+  const ban2 = mapChoice(teamB, pool, 'ban');
+  pool = applyVetoAction(actions, 'BAN_B1', teamB.tid, ban2, pool);
+  const pick1 = mapChoice(teamA, pool, 'pick');
+  pool = applyVetoAction(actions, 'PICK_A1', teamA.tid, pick1, pool);
+  const side1 = Math.random() > 0.5 ? 'ATK' : 'DEF';
+  applyVetoAction(actions, 'SIDE_B1', teamB.tid, pick1, pool, { side: side1 });
+  const pick2 = mapChoice(teamB, pool, 'pick');
+  pool = applyVetoAction(actions, 'PICK_B1', teamB.tid, pick2, pool);
+  const side2 = Math.random() > 0.5 ? 'ATK' : 'DEF';
+  applyVetoAction(actions, 'SIDE_A1', teamA.tid, pick2, pool, { side: side2 });
+  const ban3 = mapChoice(teamA, pool, 'ban');
+  pool = applyVetoAction(actions, 'BAN_A2', teamA.tid, ban3, pool);
+  const ban4 = mapChoice(teamB, pool, 'ban');
+  pool = applyVetoAction(actions, 'BAN_B2', teamB.tid, ban4, pool);
   const decider = pool[0];
-  const side3 = Math.random() > 0.5 ? 'ATK' : 'DEF'; actions.push({ step: 'A side', tid: teamA.tid, mapId: decider.id, side: side3 });
+  const side3 = Math.random() > 0.5 ? 'ATK' : 'DEF';
+  applyVetoAction(actions, 'DECIDER_SIDE_A', teamA.tid, decider, pool, { side: side3 });
 
   return {
     teamA: teamA.tid,
     teamB: teamB.tid,
+    phases: VETO_PHASES_BO3,
     actions,
     order: [pick1.id, pick2.id, decider.id],
+    legal: { usedMaps: [ban1.id, ban2.id, pick1.id, pick2.id, ban3.id, ban4.id, decider.id], uniqueMaps: new Set([ban1.id, ban2.id, pick1.id, pick2.id, ban3.id, ban4.id, decider.id]).size === 7 },
     mapMeta: {
       [pick1.id]: { pickedByTid: teamA.tid, sideByTid: { [teamB.tid]: side1 } },
       [pick2.id]: { pickedByTid: teamB.tid, sideByTid: { [teamA.tid]: side2 } },
@@ -455,7 +496,12 @@ export function playLiveRound(state, match) {
   const lateRound = live.roundIndex >= 14;
   const homeAdapt = lateRound ? (state.players.filter((p) => p.tid === match.homeTid && (state.teams.find((t) => t.tid === match.homeTid)?.starters || []).includes(p.pid)).reduce((sum,p)=>sum+(p.derived?.adaptationScore||50),0)/5 - 50) / 220 : 0;
   const awayAdapt = lateRound ? (state.players.filter((p) => p.tid === match.awayTid && (state.teams.find((t) => t.tid === match.awayTid)?.starters || []).includes(p.pid)).reduce((sum,p)=>sum+(p.derived?.adaptationScore||50),0)/5 - 50) / 220 : 0;
-  const pHome = 1 / (1 + Math.exp(-((homePower + homeAdapt) - (awayPower + awayAdapt)) / 10));
+  const homeOp = teamTopOperatorSkill(state, match.homeTid);
+  const awayOp = teamTopOperatorSkill(state, match.awayTid);
+  const opDuelRound = (homeEco.buyType === "FULL" || awayEco.buyType === "FULL") && Math.random() < 0.32;
+  const opSwing = opDuelRound ? clamp((homeOp - awayOp) / 110, -0.22, 0.22) : 0;
+  const pHomeBase = 1 / (1 + Math.exp(-((homePower + homeAdapt) - (awayPower + awayAdapt)) / 10));
+  const pHome = clamp(pHomeBase + opSwing, 0.08, 0.92);
   const homeWin = Math.random() < pHome;
   const winnerTid = homeWin ? match.homeTid : match.awayTid;
   const loserTid = homeWin ? match.awayTid : match.homeTid;
@@ -474,8 +520,8 @@ export function playLiveRound(state, match) {
   const sortedByDuel = [...allRows].sort((a, b) => {
     const pa = state.players.find((p) => p.pid === a.pid);
     const pb = state.players.find((p) => p.pid === b.pid);
-    const aa = affinityScore(pa, a.agent) + (String(a.role).toLowerCase() === 'duelist' ? 14 : 0);
-    const ab = affinityScore(pb, b.agent) + (String(b.role).toLowerCase() === 'duelist' ? 14 : 0);
+    const aa = affinityScore(pa, a.agent) + operatorSkill(pa) * (opDuelRound ? 0.45 : 0.18) + (String(a.role).toLowerCase() === 'duelist' ? 14 : 0);
+    const ab = affinityScore(pb, b.agent) + operatorSkill(pb) * (opDuelRound ? 0.45 : 0.18) + (String(b.role).toLowerCase() === 'duelist' ? 14 : 0);
     return ab - aa;
   });
   const fkRow = sortedByDuel[0];
@@ -515,7 +561,7 @@ export function playLiveRound(state, match) {
   const winnerAbbrev = winnerTid === match.homeTid ? homeTeam.abbrev : awayTeam.abbrev;
   live.log.push(`Map ${live.mapIndex + 1} R${live.roundIndex}: ${winnerAbbrev} ${winType.toUpperCase()} (${BUY_LABELS.indexOf(homeEco.buyType) >= 0 ? homeEco.buyType : 'BUY'}/${awayEco.buyType})`);
 
-  if (firstKill) map.keyMoments.push({ type: 'firstKill', roundIndex: live.roundIndex, importance: 30, ...firstKill });
+  if (firstKill) map.keyMoments.push({ type: 'firstKill', roundIndex: live.roundIndex, importance: opDuelRound ? 45 : 30, opDuelRound, ...firstKill });
   if (clutches.length) map.keyMoments.push({ type: 'clutch', roundIndex: live.roundIndex, pid: clutches[0].pid, tid: clutches[0].tid, vs: clutches[0].vs, importance: 50 + clutches[0].vs * 5 });
   map.keyMoments.sort((a, b) => (b.importance || 0) - (a.importance || 0));
 
@@ -558,3 +604,9 @@ export function simulateBo3Series(state, match) {
   simLiveSeries(state, match);
   return match.result;
 }
+
+
+// MANUAL TEST CHECKLIST
+// 1) Teams with elite operatorAim players create more high-impact OP rounds.
+// 2) First-kill moments from OP duel rounds show higher importance in live logs.
+// 3) Teams without strong operator skill feel weaker in long-range rounds.

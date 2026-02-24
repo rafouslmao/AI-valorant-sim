@@ -14,7 +14,7 @@ function baseCluster(seed = 60) {
 export function createPlayerAttributes(seed = 62) {
   return {
     mechanics: {
-      rawAim: baseCluster(seed + 5), tracking: baseCluster(seed + 1), firstBulletAccuracy: baseCluster(seed + 3), recoilControl: baseCluster(seed - 2), movement: baseCluster(seed), crosshairDiscipline: baseCluster(seed + 2)
+      rawAim: baseCluster(seed + 5), tracking: baseCluster(seed + 1), firstBulletAccuracy: baseCluster(seed + 3), recoilControl: baseCluster(seed - 2), movement: baseCluster(seed), crosshairDiscipline: baseCluster(seed + 2), operatorAim: baseCluster(seed + 1)
     },
     utilitySkill: {
       utilityTiming: baseCluster(seed), utilityPrecision: baseCluster(seed + 1), comboSync: baseCluster(seed - 1), roleMastery: baseCluster(seed + 2),
@@ -78,6 +78,7 @@ function normalizeLegacyAttributes(player) {
   const created = createPlayerAttributes(Math.round(avg(Object.values(a))));
   created.mechanics.rawAim = clamp(a.aim + 4, 0, 100);
   created.mechanics.firstBulletAccuracy = clamp(a.aim + 2, 0, 100);
+  created.mechanics.operatorAim = clamp(a.aim - 2, 0, 100);
   created.utilitySkill.utilityTiming = clamp(a.utility, 0, 100);
   created.utilitySkill.utilityPrecision = clamp(a.utility, 0, 100);
   created.mental.clutch = clamp(a.clutch, 0, 100);
@@ -85,6 +86,15 @@ function normalizeLegacyAttributes(player) {
   created.decisionMaking.infoProcessing = clamp(a.decisionMaking, 0, 100);
   created.teamplay.communication = clamp(a.teamwork, 0, 100);
   player.attributes = created;
+}
+
+function ensureOperatorAim(player) {
+  const mech = player.attributes?.mechanics;
+  if (!mech) return;
+  if (mech.operatorAim == null) {
+    const offset = r(-8, 6);
+    mech.operatorAim = clamp((mech.rawAim ?? 55) + offset, 20, 100);
+  }
 }
 
 function ensureTraits(player) {
@@ -110,6 +120,7 @@ function applyTraitModifier(base, traits, key) {
 
 export function computeDerivedRatings(player, context = {}) {
   normalizeLegacyAttributes(player);
+  ensureOperatorAim(player);
   ensureRoleMastery(player);
   ensureTraits(player);
   const at = player.attributes;
@@ -133,7 +144,7 @@ export function computeDerivedRatings(player, context = {}) {
 
   const raw = {
     rifleImpact: mech * 0.58 + decision * 0.2 + at.mechanics.recoilControl * 0.22,
-    opImpact: at.mechanics.firstBulletAccuracy * 0.38 + at.mechanics.crosshairDiscipline * 0.32 + at.mental.composure * 0.3,
+    opImpact: at.mechanics.operatorAim * 0.42 + at.mechanics.firstBulletAccuracy * 0.24 + at.mechanics.crosshairDiscipline * 0.18 + at.mental.composure * 0.16,
     entryPower: at.mechanics.movement * 0.33 + at.mental.confidence * 0.22 + at.decisionMaking.positioning * 0.25 + at.teamplay.initiative * 0.2,
     tradeReliability: at.teamplay.communication * 0.35 + at.teamplay.trustFollow * 0.3 + at.decisionMaking.spacing * 0.35,
     clutchImpact: at.mental.clutch * 0.48 + at.mental.composure * 0.3 + at.decisionMaking.riskControl * 0.22,
@@ -167,7 +178,7 @@ export function computeDerivedRatings(player, context = {}) {
   player.ovr = toOvr(overallCore);
   player.ovrs = { attack: player.ovrAttack, defense: player.ovrDefense, overall: player.ovr };
   player.attrs = player.attrs || {
-    aim: Math.round(avg([at.mechanics.rawAim, at.mechanics.tracking, at.mechanics.firstBulletAccuracy])),
+    aim: Math.round(avg([at.mechanics.rawAim, at.mechanics.tracking, at.mechanics.firstBulletAccuracy, at.mechanics.operatorAim])),
     utility: Math.round(avg([at.utilitySkill.utilityTiming, at.utilitySkill.utilityPrecision])),
     clutch: at.mental.clutch,
     mental: Math.round(avg([at.mental.composure, at.mental.confidence, at.mental.pressureHandling])),
@@ -179,6 +190,7 @@ export function computeDerivedRatings(player, context = {}) {
 
 export function ensurePlayerSystems(player, teamContext = {}) {
   normalizeLegacyAttributes(player);
+  ensureOperatorAim(player);
   ensureTraits(player);
   ensureRoleMastery(player);
   if (!player.primaryRole) player.primaryRole = player.preferredRole || player.currentRole || 'Flex';
@@ -201,4 +213,8 @@ export function mapFamiliarityTemplate() {
   return Object.fromEntries(MAP_POOL.map((m) => [m.id, 35]));
 }
 
+// MANUAL TEST CHECKLIST
+// 1) New world -> players have mechanics.operatorAim and profile shows it in Mechanics.
+// 2) Legacy saves without operatorAim auto-initialize from rawAim with small variance.
+// 3) OP-heavy players produce higher opImpact and influence round outcomes.
 export function getTraitPool() { return TRAIT_POOL.slice(); }
