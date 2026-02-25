@@ -1,24 +1,5 @@
 import { buildSeedDatabaseFromText } from './importer.js';
 
-const PLAYER_RATINGS_OVERRIDES = {
-  TenZ: {
-    attrs: { aim: 92, utility: 78, clutch: 89, mental: 84, teamwork: 77, decisionMaking: 80 },
-    operatorAim: 90,
-    traitHints: ['Oper Specialist', 'Ice Cold']
-  },
-  Cryo: {
-    operatorAim: 94,
-    attrs: { aim: 90, clutch: 86 },
-    traitHints: ['Oper Specialist']
-  },
-  Boaster: {
-    attributes: {
-      decisionMaking: { macroUnderstanding: 92, midRoundAdaptation: 91 },
-      teamplay: { communication: 93 }
-    }
-  }
-};
-
 export const MASTER_PLAYERS_TEXT = `Team | Name | Role(s) | Age | Nationality | ImageURL | Starter | FreeAgent
 FNATIC | Boaster | controller | 30 | United_Kingdom | https://i.imgur.com/siilXfI.png | true | false
 Natus Vincere | hiro | duelist/initiator/flex/sentinel | 19 | Netherlands | https://owcdn.net/img/67925026116a0.png | true | false
@@ -1444,31 +1425,1007 @@ Wolves Esports | autumN | initiator/duelist/sentinel | 18 | Taiwan | https://www
 
 
 
-function normalizeNameKey(name) {
-  return String(name || '').trim().toLowerCase();
-}
+const MASTER_PLAYERS_TEXT_EXTRA_5 = `Team | Name | Role(s) | Age | Nationality | ImageURL | Starter | FreeAgent
+Free Agents | neth | controller/sentinel/initiator/duelist/flex | 29 | Japan | https://i.imgur.com/XkB6doR.png | false | true
+ZETA DIVISION | Absol | duelist/flex | 19 | Japan | https://owcdn.net/img/67934b434bc95.png | true | false
+Free Agents | xnfri | initiator/duelist/controller/flex | 26 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Demiurge | duelist/initiator/flex | 24 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LoyDreaM | duelist/sentinel/initiator/flex | 23 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Masic | duelist | 25 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Insider | sentinel/controller/duelist | 24 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kanpeki | sentinel/initiator/duelist/flex/controller | 28 | United_States | https://owcdn.net/img/61fabc8f2de83.png | false | true
+Free Agents | Jerk | initiator/sentinel | 26 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | snikk | initiator | 28 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Grmekista | controller/initiator/sentinel/flex | 27 | Slovenia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mummAy | sentinel/controller/initiator/flex | 31 | United_States | https://owcdn.net/img/65bfefe1a75a8.png | false | true
+Free Agents | Lewa | controller/sentinel/flex | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Aryu | sentinel/controller/duelist | 25 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nakya | duelist/sentinel/initiator/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | RedKoh | initiator/controller/sentinel/flex | 25 | Singapore | https://owcdn.net/img/63da18c1a87ab.png | false | true
+Free Agents | viness | controller/flex | 23 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DaFt | duelist/controller | 21 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Cud | sentinel/duelist | 20 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Flaring | controller | 23 | France | https://owcdn.net/img/63dcfea755ea6.png | false | true
+Free Agents | Excali | initiator/sentinel/duelist/flex | 28 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Trick | initiator | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | acrian | sentinel/controller | 23 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kadoom | duelist | 21 | Thailand | https://owcdn.net/img/65c4b28472deb.png | false | true
+Free Agents | Hoax | controller/sentinel/initiator/flex | 23 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kinguyen | duelist/sentinel | 21 | Belgium | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | cidZzZ | initiator/flex | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jesmu | initiator/controller | 21 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DESTRUCT1VEE | controller/sentinel | 27 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Team Vitality | UNFAKE | initiator/controller | 28 | Poland | https://owcdn.net/img/6977a6f8ca2b2.png | false | false
+Free Agents | Karma | duelist/sentinel | 23 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | chukL9 | initiator | 20 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | k1ngkappa | duelist | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | maniek | duelist/sentinel | 22 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | alannn | initiator/duelist/flex | 20 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dazlly | sentinel/controller | 24 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Xan | duelist/controller | 18 | Malaysia | https://owcdn.net/img/63e0aac691662.png | false | true
+Free Agents | DEATHMAKER | initiator/duelist/flex/controller | 27 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Ambi | initiator/sentinel/flex | 25 | Czech Republic | https://owcdn.net/img/63bee3ba9f47b.png | false | true
+Free Agents | exy | controller/initiator | 27 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | OuTLaW | initiator/controller/sentinel/flex | 26 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Teague | initiator | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Serial | initiator | 21 | Latvia | https://i.imgur.com/AKmk3G8.png | false | true
+Free Agents | Crunchy | controller/duelist | 26 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Near | initiator/sentinel | 21 | Uruguay | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Witz | initiator/controller | 30 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MARCTYLINHO | controller/initiator | 26 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Siraww | initiator | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Hate | duelist/sentinel/initiator/flex | 24 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Famzzam | controller/initiator | 19 | Ireland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Tempz | controller/initiator/sentinel/flex | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Docent | controller/sentinel | 23 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ZachaREEE | initiator/sentinel | 24 | United_States | https://owcdn.net/img/6224a6981257a.png | false | true
+Free Agents | psy | sentinel/initiator/flex | 27 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LeVi | controller/sentinel | 23 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fragger | initiator/sentinel | 21 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Bully | sentinel/controller | 20 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | subbey | initiator/flex | 21 | Malaysia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bzt | initiator | 28 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Venka | duelist/sentinel | 19 | India | https://owcdn.net/img/6669cee78885b.png | false | true
+Free Agents | ri4d | duelist/sentinel/initiator/flex | 21 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | caydeN | controller/initiator | 26 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | NeskaaS | sentinel/controller | 27 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KILLDREAM | duelist | 32 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Tempo | sentinel/duelist | 23 | Ireland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | astr0 | controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | moner | sentinel | 22 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Bgg | controller/duelist | 25 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | W1nner | sentinel/duelist/controller/flex | 27 | Taiwan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | thebigfiz | initiator/controller | 30 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | szimpli | duelist | 24 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | umu7 | duelist/sentinel | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Lilo | duelist/initiator/flex | 25 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | iFly | initiator/sentinel | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | King | controller/initiator | 25 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | rood | sentinel/controller/duelist | 29 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mizu | controller/sentinel | 26 | Argentina | https://owcdn.net/img/6468f6195c344.png | false | true
+Free Agents | drakoNz | controller/duelist | 28 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gotten | controller/initiator | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SnipKw | controller/initiator | 24 | Kuwait | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | NakJi | initiator/controller/duelist/flex | 23 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | neto | duelist/sentinel/flex | 23 | Argentina | https://owcdn.net/img/672c03ef2f734.png | false | true
+Full Sense | Killua | initiator/flex | 21 | Thailand | https://owcdn.net/img/6944048d3e33c.png | true | false
+Free Agents | dip | sentinel/controller/initiator/flex/duelist | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kAyle | duelist/initiator/sentinel/flex | 25 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nille | sentinel/controller | 27 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shelbyN | controller | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Forcee | initiator/sentinel | 22 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gio | initiator/sentinel/controller/flex | 22 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Doenmo | duelist/controller | 25 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Chanyboi | initiator | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Karmine Corp | LewN | duelist | 19 | Turkey | https://owcdn.net/img/680a9297edd81.png | true | false
+Free Agents | TajReX | initiator/sentinel/controller/flex | 21 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | rawfiul | initiator/sentinel/duelist/flex | 24 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KPZET | controller/initiator/sentinel/flex/duelist | 27 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | VTaguT | controller | 26 | Portugal | https://owcdn.net/img/664036557a13a.png | false | true
+Free Agents | shy | duelist/sentinel | 27 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zaninZS | sentinel/initiator | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Aphun | controller/sentinel/duelist | 22 | Netherlands | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gatorada | controller/duelist | 25 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | puggy | initiator | 26 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vakk | sentinel/initiator/duelist | 25 | Lithuania | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Impact | sentinel/duelist | 20 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DubsteP | initiator/sentinel/controller/duelist/flex | 33 | Philippines | https://owcdn.net/img/6667c2513109c.png | false | true
+Free Agents | Biju | controller | 27 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bezn1 | controller/initiator/sentinel/flex | 28 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | 972 | controller/flex | 21 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | karam1l | sentinel/controller | 27 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ray4c | duelist/sentinel | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | budimeisteR | controller | 23 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tryst | initiator/controller/duelist/flex/sentinel | 23 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Will | controller/duelist | 26 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Linus | controller/duelist | 20 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kohliii | controller/initiator/duelist | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | STAVINCI | controller/initiator/duelist | 33 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | qw1 | initiator/duelist/flex | 23 | Turkey | https://owcdn.net/img/655c31c464f1f.png | false | true
+Free Agents | Danda | initiator/controller | 22 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | cullumx | duelist/initiator/flex | 20 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Caim | duelist | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | w0zzip | controller/initiator | 19 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zharwow | controller/initiator/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SeliG | duelist/sentinel | 23 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | phequa | duelist | 20 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+BBL Esports | Crewen | sentinel/controller | 21 | Turkey | https://owcdn.net/img/69797451d6733.png | true | false
+Free Agents | kAzoo | sentinel/controller/initiator/duelist/flex | 27 | Syria | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Titanjr | initiator | 20 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jini | initiator/controller | 23 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SoOn | sentinel | 31 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DcRulz | sentinel | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | sSef | controller/duelist | 29 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | OLIZERA | sentinel/duelist | 23 | Portugal | https://i.imgur.com/tINynQH.png | false | true
+Free Agents | Louitan | duelist/sentinel/initiator/flex | 24 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kakarot | sentinel/duelist | 24 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | benjii | sentinel/controller | 23 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Bangnan | duelist/controller | 24 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Black | controller | 19 | Egypt | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | severiNe | controller/initiator/sentinel | 32 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Paradox | sentinel/initiator | 25 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | rAb1q | initiator/controller/sentinel | 19 | Taiwan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Deadly10 | duelist/initiator/flex | 22 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jEEE | controller/initiator | 24 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | aljaDi | sentinel/duelist | 24 | Kuwait | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jaf | controller/duelist | 25 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nunmeister | initiator/sentinel/controller | 21 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Add3r | sentinel/initiator/flex | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nawaf | initiator | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | scarn | duelist | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jas0n | sentinel | 22 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Roco | controller/duelist/sentinel | 21 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | moobs | duelist/initiator/flex/sentinel | 25 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | iNTRO | sentinel/controller/initiator/flex | 23 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Ender | sentinel/initiator | 27 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ntk | initiator/flex | 31 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | N A I S | sentinel/initiator/controller | 25 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | GodsB | sentinel/duelist | 29 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shen | sentinel/initiator | 21 | Laos | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bucher | sentinel/controller | 23 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | murii | initiator/sentinel | 27 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | cacan | sentinel/controller | 24 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | xanarchy | initiator/duelist/flex | 21 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vascalizz | initiator/sentinel | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | alvinboy | duelist/sentinel | 19 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | woddy | initiator/controller | 22 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | HearthBeat | controller | 25 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zepher | sentinel/duelist | 24 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | million | controller/initiator | 28 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jangler | controller | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | aproto | controller/sentinel/initiator | 26 | United_States | https://owcdn.net/img/6278bd4d347ef.png | false | true
+Free Agents | nyczu | controller/sentinel | 21 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pdr | initiator/duelist | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Hitch | initiator/controller/flex | 21 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | dapr | controller/sentinel/duelist | 27 | United_States | https://owcdn.net/img/65adacebec3e3.png | false | true
+Free Agents | Lear | initiator/sentinel/flex | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Pyro | initiator/controller/sentinel | 20 | Cambodia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | RvK | controller/sentinel/flex | 25 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Reita | sentinel/initiator | 31 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Cohburg | sentinel/duelist | 22 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kongared | initiator | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Manggong | controller | 21 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vlt | sentinel/duelist/flex | 21 | Kuwait | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kivary | duelist/sentinel | 21 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Impecunity | duelist/sentinel | 22 | Singapur | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LETHAL | initiator/controller | 21 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | contii | controller/sentinel/flex | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | markL | controller/sentinel | 24 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | POISED | sentinel/initiator/flex | 28 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | oderus | controller/sentinel | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | deigara | sentinel/initiator/duelist/controller/flex | 28 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | silenx | sentinel/controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KIMB0 | sentinel/initiator/controller/flex | 21 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Luzuh | duelist/sentinel | 27 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LIQUID | initiator/sentinel | 22 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | INFESTOR | initiator/sentinel | 26 | United_Arab_Emirates | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | CTC | sentinel/controller | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LBY | initiator/controller/duelist | 23 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | xenon | controller/initiator | 30 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+FUT Esports | KROSTALY | initiator/flex/sentinel | 19 | Turkey | https://owcdn.net/img/697aba0af3cd9.png | true | false
+Free Agents | damaraa | duelist/sentinel | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | trinxty | duelist | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | flyuh | controller/initiator | 22 | United_States | https://i.imgur.com/7I7EYUb.png | false | true
+Free Agents | Zneva | sentinel | 20 | Israel | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | murizzz | initiator/controller | 26 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | litshii | initiator | 21 | Austria | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | satellite | duelist | 20 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Urango | initiator/controller | 21 | Brazil | https://i.imgur.com/vtDAAQ2.png | false | true
+Free Agents | fiziq | initiator/controller | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KHS | sentinel/initiator/duelist/flex | 21 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Moosey | duelist/controller/flex | 25 | Malaysia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | nero | initiator | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | TiduS | controller/initiator | 31 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Antidote | initiator/controller/sentinel/flex/duelist | 29 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ralle | initiator | 23 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Elixllo | controller/sentinel | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | snarly | initiator/sentinel | 20 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | TENNN | sentinel/controller/initiator/flex | 24 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Vorwenn | controller | 26 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vibhoRR | sentinel/controller | 26 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Limpe | duelist/controller | 24 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nahsie | sentinel/controller/initiator/flex | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Phatt | initiator/sentinel | 27 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Evilkyk | initiator | 30 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ESMONDE | controller/sentinel | 21 | Singapur | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PinOcchiOs | initiator/sentinel | 27 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Repulsive | controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ImNotD7o | controller/flex | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | melo | initiator/controller | 28 | Romania | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jans0n | initiator/sentinel/duelist | 20 | Malaysia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | qxv | initiator/controller/sentinel/flex | 21 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bryce | controller/sentinel | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gucc107 | controller/sentinel/duelist | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MOJJ | sentinel/controller | 28 | Turkey | https://owcdn.net/img/65c7fdaff3aa3.png | false | true
+Free Agents | darkosek | initiator/controller/duelist | 25 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | rezy | initiator/controller | 24 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | micr0 | initiator/controller/duelist | 29 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | inf | sentinel/duelist | 20 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | saun | controller/initiator | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kasper | initiator/sentinel/duelist/controller/flex | 27 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Treelover | controller/duelist | 21 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Ninjas | initiator/sentinel/controller/flex | 30 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | APO | initiator/controller/flex | 29 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Acetics | initiator/sentinel/controller | 24 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Drone | duelist/initiator/flex | 28 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | xZe | duelist/controller | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bld | sentinel | 33 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Alucard | initiator/flex | 25 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tellfeenzo | sentinel/controller/duelist | 21 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AMNESTY | initiator/flex | 21 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+BBL Esports | Rosé | initiator/controller | 21 | Turkey | https://owcdn.net/img/6979757c1322c.png | true | false
+Free Agents | Sacake | initiator/duelist | 30 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | eNes | controller | 25 | Austria | https://www.vlr.gg/img/base/ph/sil.png | false | true
+ULF Esports | sturNN | controller/sentinel | 23 | Turkey | https://owcdn.net/img/679a1d968bc0c.png | false | false
+Free Agents | joshh | controller/sentinel/flex | 23 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | nate | duelist | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | skillZ | sentinel/controller/flex | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | fainz | duelist/sentinel | 26 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kenji | duelist/initiator/flex | 17 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | CHIMEI | initiator/sentinel | 21 | Hong_Kong | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fross | controller | 21 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | GodDead | initiator/sentinel | 27 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | canefis | sentinel/controller | 24 | Ireland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | CALVIN S | sentinel/controller/initiator | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Br0die | initiator/controller | 26 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kayle | sentinel/controller | 22 | Malaysia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | riku | sentinel/controller | 27 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shiba | initiator/controller | 21 | Singapur | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Polkan | initiator | 26 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Reality | sentinel/controller/initiator/flex | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kenobi | sentinel/initiator/controller/flex | 21 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dane | initiator | 19 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | NoXuS | controller | 24 | Morocco | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tripsy | sentinel/controller | 21 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | OzzyTK | controller/initiator/duelist | 21 | Ireland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | limitado | controller/sentinel/initiator/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SouhcNi | initiator/sentinel | 26 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | wstVirginia | initiator/controller | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | b3ta | controller | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dext | controller/sentinel/flex | 21 | Slovakia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ezzy | sentinel/controller/duelist | 23 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tbloy | duelist/initiator | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Precision | initiator/sentinel/duelist | 22 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | no1syboy | sentinel/initiator/duelist/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Mojo | initiator/sentinel/duelist | 26 | Brunei | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SyKo | initiator | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Rexon | controller/sentinel/initiator/flex | 21 | UNKWOWN | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | P4ND4 | initiator/sentinel | 21 | Mexico | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bramz | sentinel/controller | 26 | Tunisia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | OniBy | initiator/duelist/sentinel/flex | 26 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | HEMMORJAY | duelist | 27 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MILKY | initiator/controller/sentinel/flex | 25 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mochi | sentinel/controller | 20 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Aru | initiator | 19 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | sunshine | controller/sentinel | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Ri0 | initiator/controller/flex | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shooterR | duelist/sentinel/initiator | 25 | Pakistan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | nixoon | controller/initiator | 29 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | fame | sentinel/controller/flex | 26 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SantaGolf | sentinel/controller/initiator | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Razvy | initiator/duelist/sentinel/flex | 22 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Tmy | sentinel | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Brädi | initiator/controller | 20 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Derialy | sentinel/initiator/controller/flex | 22 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BennY | initiator/duelist/flex | 28 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Antigon | initiator | 23 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Haitam | sentinel/initiator | 21 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bnwgiggs | controller/initiator/duelist | 29 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Aqua | initiator/controller | 21 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | yiinel | initiator | 26 | Mexico | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | B3ASTM0D3 | controller/sentinel | 25 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lff | controller | 21 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kaqnn | controller/initiator/sentinel/flex | 21 | Algeria | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SexyChristian | initiator | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Whimp | controller/initiator/sentinel/flex | 26 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | arch | initiator | 29 | Ukraine | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Vici | controller | 21 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Team Secret | TenTen | duelist/flex | 22 | South_Korea | https://i.imgur.com/4l6i7Kw.png | true | false
+Free Agents | n1zzy | controller/initiator | 23 | Vietnam | https://i.imgur.com/FHal3XB.png | false | true
+Free Agents | tixx | initiator/controller | 23 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BMV | controller | 24 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | flabben | duelist/sentinel/controller/flex/initiator | 23 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Egoist | sentinel/initiator | 24 | Singapore | https://owcdn.net/img/651eec784cde3.png | false | true
+Free Agents | hvoya | initiator/sentinel/duelist | 27 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tesseract | initiator/sentinel | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Davidp | initiator/controller | 31 | Belgium | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Temperature | controller | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | feqew | duelist/sentinel/initiator | 28 | Lithuania | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | trinity | duelist/controller | 21 | Hong_Kong | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Eeyore | sentinel | 30 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | WARDELL | duelist/sentinel | 27 | Canada | https://owcdn.net/img/610670cf0960e.png | false | true
+Free Agents | slathom999 | initiator/duelist/flex/controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jmoh | duelist | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LuZ | initiator/sentinel | 26 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | THEELOVEFAMILY | sentinel/initiator/controller/flex | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bjor | sentinel/controller/flex | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AKIMB0 | controller/flex | 24 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | al1en | controller/initiator | 26 | Slovenia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Yurii | initiator/sentinel | 24 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gin | sentinel/controller | 22 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ngiN | sentinel | 21 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Rebo | controller/sentinel | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MONSTEERR | sentinel/duelist/flex | 21 | Czech Republic | https://owcdn.net/img/687aa980d680d.png | false | true
+Free Agents | brax | sentinel/controller | 29 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kishi | initiator/sentinel/duelist | 25 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Leozin | initiator | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | fzkk | controller/duelist | 28 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | nillyaz | sentinel/controller/initiator | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | JUGi | duelist/sentinel | 28 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Mickebwoy | initiator | 24 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BeomJun | controller/initiator/duelist | 22 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PPDBJ | sentinel/controller/flex | 21 | Taiwan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | klipp | sentinel/controller/initiator | 24 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vong | controller/initiator | 21 | Norway | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Brofeld | sentinel | 21 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pepa | controller/sentinel | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | matheuzin | sentinel/controller/flex | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Georggyyy | duelist | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | LAMMYSNAX | initiator/duelist/flex | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | L1NK | duelist/controller/sentinel/flex | 27 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+G2 Esports | BABYBAY | sentinel/duelist/flex | 30 | United_States | https://i.imgur.com/FgJPTq3.png | true | false
+Free Agents | fletcher | controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | P1nA | controller/sentinel | 25 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Duno | initiator/sentinel/flex | 28 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | popogachi | initiator | 22 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BEAST | initiator/sentinel | 30 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Rave | initiator/sentinel/controller/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ShahZaM | initiator/flex | 32 | United_States | https://owcdn.net/img/6409c86cb5488.png | false | true
+Free Agents | ec1s | controller | 25 | United_Kingdom | https://owcdn.net/img/65cd7acc1d1d2.png | false | true
+Free Agents | denzo | duelist/sentinel | 23 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kyrrz | initiator/controller | 26 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | krain | initiator/controller | 25 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Acerola | controller/initiator | 27 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tech | duelist/sentinel | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SasuKe | controller/initiator | 29 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | JayH | initiator/sentinel | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ZexRow | sentinel/controller | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MatiS | sentinel/duelist | 21 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Coffee | duelist | 25 | Belarus | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ChiaWei | duelist/flex | 29 | Taiwan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Baransel | controller/sentinel/initiator | 21 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lauress | sentinel/controller/initiator/flex | 21 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AFoxx | controller/sentinel/flex | 29 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Changee | duelist | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DeepMans | initiator/sentinel | 20 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Cab8ts | sentinel/controller/flex | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | arbie | controller/sentinel | 26 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | sharky | initiator/sentinel | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Art | initiator/controller/flex | 26 | Japan | https://i.imgur.com/T9G2HEn.png | false | true
+Free Agents | TiGG | controller/sentinel | 26 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Shun | initiator | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Stewie2k | initiator | 27 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Draxi | controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gtn | initiator/controller/duelist | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | thiefy | duelist/sentinel/initiator/flex | 21 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | wayLander | initiator/controller | 31 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | dimaxx | initiator/controller | 23 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | braveaf | initiator/duelist/flex | 30 | Russia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zinc | sentinel/controller/initiator | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mini | sentinel/controller/initiator | 26 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | venture | initiator | 22 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Navarrete | controller/initiator | 25 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AslaN | controller/sentinel | 28 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PureR | duelist/sentinel | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AcMe | initiator/controller | 22 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ZK | initiator/controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ShonP | initiator/sentinel/duelist | 26 | Israel | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jeong Hi | controller | 28 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KhA | controller | 24 | Greece | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ducT | initiator/controller | 25 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | b4rtin | controller | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PureVNS | controller | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | hussaR | sentinel/controller/initiator/flex | 28 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Exalt | initiator | 25 | Cuba | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Apinya | controller | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | rodeN | controller/initiator | 28 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kimmy | duelist | 21 | Singapur | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kehmicals | duelist/controller | 22 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | GGHuiii | duelist | 21 | Hong_Kong | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | clear | duelist/controller | 22 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | phaze | duelist | 23 | Egypt | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jfoeN | initiator/duelist/flex | 28 | Colombia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | BlackHeart | initiator/sentinel | 26 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PHYRN | sentinel/controller | 29 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Hyzee | initiator/sentinel | 28 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | allow | duelist/sentinel | 28 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kwixy | initiator/sentinel | 25 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Asteriskk | controller | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DarkLight | initiator/flex | 21 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Harmful | duelist/sentinel/initiator | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Foxie | initiator/sentinel | 26 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | nTK | sentinel/flex | 24 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Daicute | duelist/sentinel | 23 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | basbabe | controller | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Sunday | controller/initiator/duelist | 34 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Harshhh | controller/initiator/sentinel | 24 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | CyvOph | sentinel/initiator | 21 | France | https://i.imgur.com/FjX3Kr9.png | false | true
+Free Agents | flainzz | sentinel/controller | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Sing | controller | 21 | Hong_Kong | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | oitaN | controller/sentinel/duelist | 26 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | exotic | duelist/sentinel/flex | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | senyorcarl | sentinel/initiator/controller/flex | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vicious | initiator/controller | 25 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Juu | sentinel/initiator | 23 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Boogeyyy | sentinel/duelist | 20 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Teerapong | initiator/sentinel | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | carrace | controller/sentinel/initiator | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DOXZ3R | sentinel/initiator | 26 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fatmarino | initiator | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | freddan | sentinel/controller | 21 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Cantzer | initiator/sentinel/controller/flex/duelist | 24 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pwny | duelist/sentinel/initiator | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | d1msumboi | sentinel/initiator | 21 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shonk | initiator/sentinel | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Velocity | initiator/controller/flex | 24 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nay | sentinel/initiator | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | circu | sentinel/controller/initiator/flex | 30 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zyad | initiator/sentinel | 24 | Egypt | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tatzuki | duelist/sentinel/flex | 25 | Serbia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jurca | initiator/flex | 21 | Romania | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Redneval | sentinel/duelist/flex | 25 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pr0xy | sentinel/initiator/controller/flex | 24 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | fznnn | initiator | 29 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | eXerZ | controller/sentinel/initiator | 27 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | FREY | sentinel/controller | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ryotzz | controller/sentinel/initiator/flex | 32 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Genghsta | initiator/controller | 27 | Mongolia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | neptuNo | controller/initiator | 33 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | YAYAX | initiator/controller/duelist | 23 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | RiseN | sentinel/initiator | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fr4nky | initiator/duelist/flex | 24 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mina | sentinel/controller | 26 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | heyNF | initiator/controller/sentinel/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mNdS | sentinel/controller | 27 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tyfoon | controller/initiator | 21 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Daniel0 | duelist/controller/initiator | 23 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | moefcute | duelist/initiator | 21 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | RoLEX | sentinel/controller | 25 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lyNxi | controller/initiator | 28 | Sweden | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nhatthong2k | duelist | 21 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | MaFiN | initiator/sentinel | 21 | Czech Republic | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | shhhack | controller | 33 | Slovakia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | makiba | controller/initiator | 22 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dragy | duelist/sentinel | 23 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | qq | sentinel/controller/initiator | 28 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | WIX | initiator/sentinel/duelist | 22 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jacobin | initiator/controller/sentinel/flex | 21 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dr1ch | initiator/sentinel | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Jakexd | sentinel/controller | 24 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Ooriime | initiator/sentinel/flex | 24 | France | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | saiko | duelist | 25 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Closer | controller/initiator/flex | 31 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | WAT | controller/duelist | 27 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Vizzz | initiator | 21 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DubzWoW | initiator/duelist/flex/controller | 28 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Lanky | initiator/sentinel | 21 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | benaf | initiator/duelist | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pepzet | duelist/controller | 21 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | leonzhet | initiator | 28 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | natz | controller | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | TORANECO | controller | 29 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Chainyyy | sentinel/controller/duelist/flex | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | dazzLe | initiator | 30 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | UNNSTO | initiator/sentinel/flex | 24 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | FrizzNatsz | initiator/duelist/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | krysyS | initiator/sentinel/flex | 27 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | vblack | controller/duelist | 22 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | FallX | duelist/sentinel | 22 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | maitee | sentinel/duelist | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | hypathor | initiator/controller | 21 | Hong_Kong | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | KRAY | sentinel/controller/flex | 30 | United_Kingdom | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | empty | controller/duelist | 20 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nixerino | initiator/sentinel | 21 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Puleule | controller/initiator | 30 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | mishu | duelist | 21 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | steel | controller | 36 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | reeq | controller/flex | 23 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kardash | controller | 21 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | edu | sentinel/initiator | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Norisen | initiator | 28 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Raigard | initiator/sentinel/flex | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | bbreakG | controller | 21 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | marin | sentinel/duelist/flex | 27 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | YouBreak | sentinel/initiator/duelist | 26 | Poland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | PoPiFresH | sentinel/initiator/duelist/flex | 28 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Chrysania | controller/duelist | 29 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ikke | initiator/sentinel/controller/flex | 24 | Hungary | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | tockers | initiator/sentinel/duelist | 29 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | k1zpawn | initiator/sentinel | 21 | Portugal | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | AlDBoOR | controller/sentinel/initiator/flex | 26 | Jordan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | sakurai | duelist/initiator/sentinel/flex | 23 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | lukzera | controller | 27 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fisker | duelist/controller | 28 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Owen q t | controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | synsi | initiator/controller | 27 | Finland | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DeadInk | sentinel/initiator/duelist/flex | 24 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Radski | controller/sentinel | 21 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Akashi | initiator/duelist | 30 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | XiSTOU | controller/initiator | 27 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Liu | sentinel/initiator | 21 | Argentina | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | hyjinx | duelist/initiator | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | artn | controller | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | pleets | controller | 30 | Brazil | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | khanartist | duelist/controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | ligasa | duelist/sentinel/flex | 23 | Chile | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Louda | duelist/initiator/flex | 21 | Egypt | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Kaizen | initiator/duelist/flex | 21 | India | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | jonba | initiator/sentinel/controller/flex | 32 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Dawn | initiator/controller | 21 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | kuroza | sentinel/initiator/flex | 21 | Indonesia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Wolverine | initiator/duelist/flex | 20 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | real | duelist/flex | 21 | Thailand | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | randyySAVAGE | sentinel/controller | 28 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Wavy | duelist | 25 | South_Korea | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | zizox | sentinel/controller | 21 | Egypt | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DxN | sentinel/initiator | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | HyDrO | duelist/sentinel | 21 | Germany | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Zennakukin | initiator | 21 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | RIPablo | controller | 25 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | DRK | initiator/sentinel | 25 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Chechuu | controller | 25 | Spain | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Brxndon | controller | 21 | Singapore | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Zik | sentinel/initiator | 27 | Denmark | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nisuh | sentinel/duelist | 21 | Lebanon | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | wai | duelist/initiator/flex | 21 | Japan | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | gnaru | initiator/duelist/flex/controller | 21 | Philippines | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Rain | initiator | 30 | Canada | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | SalvoN | controller/flex | 24 | Tunisia | https://owcdn.net/img/63f4af35ed3e3.png | false | true
+Free Agents | Mark3 | controller/initiator/flex | 21 | Saudi_Arabia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Exothy | initiator/duelist/flex | 21 | Syria | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Core | initiator | 21 | Bosnia_and_Herzegovina | https://owcdn.net/img/6537a409d8799.png | false | true
+Free Agents | Maple | duelist/initiator/flex | 25 | Australia | https://owcdn.net/img/6268d092b49b5.png | false | true
+Free Agents | Chaos | duelist | 21 | China | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Nivera | controller/sentinel/flex | 24 | Belgium | https://owcdn.net/img/64249dd8899a0.png | false | true
+Free Agents | ScreaM | sentinel/initiator/duelist/flex | 31 | Belgium | https://owcdn.net/img/64249de08c2e0.png | false | true
+Team Secret | Sylvan | controller | 24 | South_Korea | https://i.imgur.com/D7iW8Yb.png | true | false
+Free Agents | Suggest | sentinel/flex | 23 | South_Korea | https://i.imgur.com/XRaA7d9.png | false | true
+Free Agents | Cyah | controller | 22 | Hong_Kong | https://owcdn.net/img/65dd9ec65ffaa.png | false | true
+Free Agents | xeta | initiator/controller/flex | 28 | South_Korea | https://owcdn.net/img/63d222a2ca44c.png | false | true
+Free Agents | garnetS | duelist/initiator | 21 | Thailand | https://owcdn.net/img/620cfc7b5464f.png | false | true
+Free Agents | Bazzi | initiator | 26 | South_Korea | https://owcdn.net/img/645be2484e391.png | false | true
+Free Agents | nos | controller | 21 | China | https://owcdn.net/img/6515c6d6499fb.png | false | true
+Free Agents | TS | controller | 30 | South_Korea | https://owcdn.net/img/6439329ed99cb.png | false | true
+Free Agents | takej | controller/flex | 25 | Japan | https://owcdn.net/img/6100de7ae9c83.png | false | true
+Free Agents | AsLanM4shadoW | sentinel/duelist | 31 | Turkey | https://owcdn.net/img/66554d19ac8ac.png | false | true
+Free Agents | Patiphan | sentinel/controller | 22 | Thailand | https://owcdn.net/img/6561a77ca19dc.png | false | true
+Free Agents | Tacolilla | duelist/sentinel | 25 | Chile | https://owcdn.net/img/65dc03ac2e2dd.png | false | true
+Free Agents | xms | sentinel/controller | 28 | France | https://owcdn.net/img/64249dcfba4ea.png | false | true
+Free Agents | Mixwell | initiator | 30 | Spain | https://owcdn.net/img/637dfc753843c.png | false | true
+Free Agents | Zoomer | initiator/duelist/flex | 21 | China | https://owcdn.net/img/651648beb9e62.png | false | true
+Free Agents | Wolfen | duelist/sentinel | 22 | Bulgaria | https://owcdn.net/img/6422335177ff6.png | false | true
+Free Agents | crow | initiator/controller | 28 | Japan | https://owcdn.net/img/65dc4f3024b19.png | false | true
+Free Agents | rhyme | controller | 26 | Norway | https://owcdn.net/img/646bd0595150d.png | false | true
+Free Agents | R1ckLeexD | sentinel/controller | 21 | China | https://owcdn.net/img/6516459258b76.png | false | true
+Free Agents | AYRIN | controller/sentinel | 29 | Canada | https://owcdn.net/img/645be2156a591.png | false | true
+Free Agents | Newzera | initiator/controller | 21 | France | https://owcdn.net/img/65a9a0d787966.png | false | true
+Free Agents | rin | sentinel/controller/duelist | 27 | China | https://owcdn.net/img/6515ba0f1d218.png | false | true
+Free Agents | BONECOLD | initiator | 27 | Finland | https://owcdn.net/img/65251867d8450.png | false | true
+Free Agents | FFs | initiator | 27 | China | https://owcdn.net/img/65dd9ee14bdfa.png | false | true
+Free Agents | keloqz | duelist | 22 | France | https://owcdn.net/img/65a9a0aec06bc.png | false | true
+Free Agents | dephh | sentinel/controller/initiator/flex/duelist | 34 | United_Kingdom | https://owcdn.net/img/641695371ca2b.png | false | true
+Free Agents | ZE1SH | initiator/controller/sentinel | 26 | France | https://owcdn.net/img/645c01ead0e8c.png | false | true
+Free Agents | koldamenta | controller/initiator | 32 | Spain | https://owcdn.net/img/6422335a3470e.png | false | true
+Free Agents | suyjing | duelist/initiator/flex | 22 | China | https://owcdn.net/img/6585b7dc855d3.png | false | true
+Free Agents | CanadianGamerMC | sentinel/duelist | 19 | Canada |  | false | true
+Free Agents | Agutrot | initiator/duelist | 19 | United_States |  | false | true
+Free Agents | Ro0st | duelist/controller | 19 | United_States |  | false | true
+Free Agents | Kybr | sentinel/initiator | 19 | United_States |  | false | true
+Free Agents | MindboyS | flex | 19 | United_States |  | false | true
+Free Agents | Anth1m | duelist | 19 | United_States |  | false | true
+Free Agents | 18albe | sentinel/duelist | 19 | United_States |  | false | true
+Free Agents | Codebreaker | sentinel | 19 | United_States |  | false | true
+Free Agents | Mooony | sentinel | 19 | United_States |  | false | true
+Free Agents | FRB | flex/sentinel | 19 | United_States |  | false | true
+Free Agents | Drifty | controller | 19 | United_States |  | false | true
+Free Agents | yoc | flex | 19 | United_States |  | false | true
+Free Agents | jaye | duelist | 19 | United_States |  | false | true
+Free Agents | Quattro_P | flex | 19 | United_States |  | false | true
+Free Agents | Zanykkj | duelist/sentinel | 19 | United_States |  | false | true
+Free Agents | Deivyy | controller | 19 | Lithuania |  | false | true
+Free Agents | BordzMP | duelist/flex | 19 | United_States |  | false | true
+Free Agents | Tachyon | sentinel | 19 | Australia |  | false | true
+Free Agents | martt | flex/sentinel | 19 | Brazil |  | false | true
+Free Agents | LeaL | initiator/duelist | 19 | United_States |  | false | true
+Free Agents | 1exus | sentinel | 19 | United_States |  | false | true
+Free Agents | parkal | sentinel | 19 | United_States |  | false | true
+Free Agents | japppz | duelist/controller | 19 | Brazil |  | false | true
+Free Agents | Shiming | controller | 19 | Mexico |  | false | true
+Free Agents | Drue | controller/duelist | 19 | Italy |  | false | true
+Free Agents | JATONHUNT | initiator | 19 | India |  | false | true
+Free Agents | clappy | sentinel | 19 | United_States |  | false | true
+Free Agents | cresp | controller/flex | 19 | Dominican_Republic |  | false | true
+Free Agents | Koalaah_ | flex | 19 | Brazil |  | false | true
+Free Agents | Wynter | duelist/flex | 19 | Armenia |  | false | true
+Free Agents | Ribbiter | controller | 19 | Canada |  | false | true
+Free Agents | Rana | duelist | 19 | Spain |  | false | true
+Free Agents | Frog | duelist | 19 | United_States |  | false | true
+Free Agents | bobojoe | sentinel/controller | 19 | Malaysia |  | false | true
+Free Agents | Inprinted | initiator | 19 | United_States |  | false | true
+Free Agents | everythingsacafe | initiator | 19 | Denmark |  | false | true
+Free Agents | slowsilver03 | flex/duelist | 19 | Bosnia_and_Herzegovina |  | false | true
+Free Agents | SavNots | flex | 19 | Singapore |  | false | true
+Free Agents | ArkiN | controller | 19 | Philippines |  | false | true
+Free Agents | Spettro | sentinel | 19 | Philippines |  | false | true
+Free Agents | emji | duelist | 19 | Philippines |  | false | true
+Free Agents | J1mmyB*ckets | controller | 19 | United_States |  | false | true
+Free Agents | Glockado | controller/flex | 19 | Brazil |  | false | true
+Free Agents | Deftuo | flex | 19 | Indonesia |  | false | true
+Free Agents | YOUNG_KINGZZ | controller/duelist | 19 | Spain |  | false | true
+Free Agents | Looga28 | controller | 19 | Netherlands |  | false | true
+Free Agents | crng | controller | 19 | Philippines |  | false | true
+Free Agents | reju | initiator/flex | 19 | Philippines |  | false | true
+Free Agents | Gordy | flex/initiator | 19 | United_States |  | false | true
+Free Agents | t0kwo | initiator/sentinel | 19 | Brazil |  | false | true
+Free Agents | Juni | sentinel/flex | 19 | Dominican_Republic |  | false | true
+Free Agents | zombs | controller | 27 | United_States | https://owcdn.net/img/6399aa246e538.png | false | true
+Free Agents | SicK | flex/duelist | 27 | United_States | https://owcdn.net/img/6399a54fc4472.png | false | true
+DetonatioN FocusMe | gyen | controller | 19 | Japan | https://i.imgur.com/oHg25qr.png | false | false
+DRX | HYUNMIN | duelist | 19 | South_Korea | https://i.imgur.com/LJLqHXv.png | true | false
+Free Agents | yokam | duelist | 20 | Philippines | https://owcdn.net/img/677901da6202a.png | false | true
+Global Esports | UdoTan | controller/sentinel/duelist | 21 | South_Korea | https://i.imgur.com/QiljNlR.png | true | false
+Bilibili Gaming | rushia | controller | 19 | China | https://i.imgur.com/WL7c1aX.png | true | false
+Free Agents | player | flex/initiator | 25 | China | https://owcdn.net/img/67d41eb18505b.png | false | true
+All Gamers | K1ra | flex/duelist/controller | 21 | China | https://owcdn.net/img/677fbe754983a.png | true | false
+Free Agents | X3B | controller | 23 | China | https://i.imgur.com/82qyBd3.png | false | true
+ENVY | ion2x | controller/duelist/initiator | 17 | India | https://i.imgur.com/kag7HQ7.png | false | false
+ENVY | canezerra | initiator/duelist | 18 | United_States | https://i.imgur.com/T6rzIYL.png | false | false
+Free Agents | MICKNUTTY333 | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Gentle Mates | GLYPH | initiator/sentinel/controller | 22 | Philippines | https://owcdn.net/img/697768b42430b.png | true | false
+Free Agents | Wildfire | flex/sentinel/duelist/controller/initiator | 21 | Ukraine | https://owcdn.net/img/6713de7c99d70.png | false | true
+Free Agents | zerona | initiator/sentinel/duelist | 22 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Sentinels | Reduxx | duelist/controller | 19 | United_States | https://owcdn.net/img/6974144d86cdb.png | true | false
+Free Agents | renz | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | moose | flex/sentinel/duelist/controller/initiator | 23 | Canada | https://owcdn.net/img/66193fcfde2a8.png | false | true
+Free Agents | Ange | flex/sentinel/duelist/controller/initiator | 22 | Canada | https://owcdn.net/img/63dac1bf3c77f.png | false | true
+Free Agents | welyy | flex/sentinel/duelist/controller/initiator | 20 | Norway | https://owcdn.net/img/63c81a1daa845.png | false | true
+Free Agents | geeza | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://owcdn.net/img/6713dcd1eb913.png | false | true
+Free Agents | BcJ | flex/sentinel/duelist/controller/initiator | 22 | United_States | https://owcdn.net/img/65a1ddb7603b0.png | false | true
+Free Agents | Kess | sentinel/initiator/flex/controller | 21 | South_Korea | https://i.imgur.com/9OQrDlw.png | false | true
+Free Agents | RetrQ | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ali | flex/sentinel/duelist/controller/initiator | 23 | Palestine | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | sonofcar | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Fair | flex/sentinel/duelist/controller/initiator | 19 | Egypt | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Muddy | flex/sentinel/duelist/controller/initiator | 22 | Laos | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | sacred | flex/sentinel/duelist/controller/initiator | 23 | India | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | infiltrator | flex/sentinel/duelist/controller/initiator | 22 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Blahst | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+ENVY | P0PPIN | initiator/duelist | 21 | United_States | https://i.imgur.com/XEBVMMy.png | true | false
+Free Agents | alvinboy | flex/sentinel/duelist/controller/initiator | 20 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Governor | flex/sentinel/duelist/controller/initiator | 21 | South_Korea | https://owcdn.net/img/6561a47044ca6.png | false | true
+Free Agents | Inspire | sentinel | 27 | United_States | https://i.imgur.com/va8STzK.png | false | true
+FURIA | nerve | controller/initiator | 23 | United_States | https://owcdn.net/img/64fcfd6f8540b.png | true | false
+Free Agents | sarahcat | flex/sentinel/duelist/controller/initiator | 23 | Canada | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | monSi | flex/sentinel/duelist/controller/initiator | 20 | Canada | https://owcdn.net/img/630aea1c12da5.png | false | true
+Free Agents | nightz | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://owcdn.net/img/679c26acd13d0.png | false | true
+100 Thieves | Timotino | duelist | 18 | Canada | https://owcdn.net/img/69704e811ce7c.png | true | false
+Free Agents | Kaoticc | flex/sentinel/duelist/controller/initiator | 19 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jonaaa6 | flex/sentinel/duelist/controller/initiator | 21 | United_States | https://owcdn.net/img/64402ee348263.png | false | true
+PCIFIC Esports | seven | duelist/sentinel/initiator | 20 | Mexico | https://owcdn.net/img/696fd431305c6.png | true | false
+Free Agents | bdog | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://owcdn.net/img/6399a3c6ddf22.png | false | true
+Free Agents | Tim | flex/sentinel/duelist/controller/initiator | 20 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | tdawgg | flex/sentinel/duelist/controller/initiator | 21 | United_States | https://owcdn.net/img/679c251c14eec.png | false | true
+Free Agents | FireBallOps | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://owcdn.net/img/630aea53bcd96.png | false | true
+Free Agents | gMd | controller | 21 | Canada | https://owcdn.net/img/65f72550a7b8b.png | false | true
+Free Agents | Jerrwin | flex/sentinel/duelist/controller/initiator | 23 | India | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | satellite | flex/sentinel/duelist/controller/initiator | 22 | Canada | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+FURIA | alym | duelist/sentinel | 20 | Kazakhstan | https://www.vlr.gg/img/base/ph/sil.png | true | false
+100 Thieves | vora | initiator | 21 | United_States | https://owcdn.net/img/69704e204d563.png | true | false
+Free Agents | Manny | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | meL | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://owcdn.net/img/6512426656782.png | false | true
+Free Agents | Shondex | flex/sentinel/duelist/controller/initiator | 19 | Turkey | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | toozy | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | mikester | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+ENVY | Eggsterr | duelist | 24 | United_States | https://i.imgur.com/cmEVj7a.png | true | false
+Free Agents | Yuki | flex/sentinel/duelist/controller/initiator | 22 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Evil Geniuses | bao | sentinel/duelist/controller/initiator/flex | 18 | Vietnam | https://www.vlr.gg/img/base/ph/sil.png | true | false
+Wolves Esports | jowa | controller/initiator | 20 | China | https://www.vlr.gg/img/base/ph/sil.png | true | false
+Free Agents | k0rupt | flex/sentinel/duelist/controller/initiator | 23 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | practo | flex/sentinel/duelist/controller/initiator | 19 | South_Korea | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Izo | flex/sentinel/duelist/controller/initiator | 20 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | alexis | flex/sentinel/duelist/controller/initiator | 21 | United_States | https://owcdn.net/img/651242a64f597.png | false | true
+Free Agents | Boni | flex/sentinel/duelist/controller/initiator | 23 | Philippines | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ScrewFace | flex/sentinel/duelist/controller/initiator | 21 | United_States | https://owcdn.net/img/60e3d65f82181.png | false | true
+Free Agents | Noia | flex/sentinel/duelist/controller/initiator | 20 | Denmark | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Zoestol | flex/sentinel/duelist/controller/initiator | 21 | United_States | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | TheDeleter | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | dodonut | flex/sentinel/duelist/controller/initiator | 20 | Thailand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jrmzie | flex/sentinel/duelist/controller/initiator | 25 | United_States | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Mited | initiator/flex | 19 | Colombia | https://owcdn.net/img/627735de110d2.png | false | true
+Free Agents | Dcop | flex/sentinel/duelist/controller/initiator | 22 | Mexico | https://owcdn.net/img/6275af692b835.png | false | true
+Free Agents | Mephisto | flex/sentinel/duelist/controller/initiator | 23 | Mexico | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Feniz | sentinel | 21 | Costa_Rica | https://owcdn.net/img/61e36ce61c3d1.png | false | true
+Free Agents | CRUNCH | flex/sentinel/duelist/controller/initiator | 19 | United_States | https://owcdn.net/img/6797122ee96c6.png | false | true
+Free Agents | v1bz | flex/sentinel/duelist/controller/initiator | 20 | Venezuela | https://owcdn.net/img/6797123a06a13.png | false | true
+Free Agents | Jow | flex/sentinel/duelist/controller/initiator | 21 | Colombia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Rei | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Cebando | controller | 21 | Argentina | https://owcdn.net/img/679ec8d2bc66d.png | false | true
+LOUD | Darker | initiator/flex | 20 | Colombia | https://owcdn.net/img/65dc04f10a927.png | true | false
+Free Agents | Peloncito | flex/sentinel/duelist/controller/initiator | 19 | Mexico | https://owcdn.net/img/639a59faef0f3.png | false | true
+Free Agents | theory | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://owcdn.net/img/619001536c7e6.png | false | true
+Free Agents | MiniNiwde | flex/sentinel/duelist/controller/initiator | 21 | Dominican_Republic | https://owcdn.net/img/6704a2b97192f.png | false | true
+Free Agents | dedmos | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | shxdow | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Tuli | duelist | 22 | Chile | https://owcdn.net/img/6468f6ad32a26.png | false | true
+Free Agents | paganus | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | otaQ | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Javiierh | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://owcdn.net/img/646f0c8add2b7.png | false | true
+Free Agents | Sabortzz | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Fresht | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | vandals | flex/sentinel/duelist/controller/initiator | 23 | Venezuela | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | pompZ | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | GeneralSteak | flex/sentinel/duelist/controller/initiator | 20 | Guatemala | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | solution | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://owcdn.net/img/6275b907cdeb9.png | false | true
+Free Agents | BandiCoot | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://owcdn.net/img/61e36b2288872.png | false | true
+Free Agents | ezznap | flex/sentinel/duelist/controller/initiator | 19 | Colombia | https://owcdn.net/img/6464a2cd5b779.png | false | true
+Free Agents | Megumi | flex/sentinel/duelist/controller/initiator | 23 | Dominican_Republic | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Sventy | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | drakk | flex/sentinel/duelist/controller/initiator | 23 | Colombia | https://owcdn.net/img/6464a2d7f2bfe.png | false | true
+Free Agents | Arbex | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mxfia | flex/sentinel/duelist/controller/initiator | 22 | Colombia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ryu | flex/sentinel/duelist/controller/initiator | 20 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Vecious | flex/sentinel/duelist/controller/initiator | 23 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | wetysao | flex/sentinel/duelist/controller/initiator | 21 | Venezuela | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Bull3tZ | flex/sentinel/duelist/controller/initiator | 23 | Honduras | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Toro | flex/sentinel/duelist/controller/initiator | 21 | Mexico | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | nAvarro | flex/sentinel/duelist/controller/initiator | 19 | Mexico | https://owcdn.net/img/6539259ad1144.png | false | true
+Free Agents | prask | flex/sentinel/duelist/controller/initiator | 20 | Venezuela | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Dragon | flex/sentinel/duelist/controller/initiator | 21 | Indonesia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | 43jlt | flex/sentinel/duelist/controller/initiator | 20 | Cyprus | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | quens1on | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Sinaway | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | BiggieCheese | flex/sentinel/duelist/controller/initiator | 19 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jamie | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | fusion | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Pacifist | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | illumi | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Murdoch | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Bonobo | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | floga | flex/sentinel/duelist/controller/initiator | 22 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | jlk | flex/sentinel/duelist/controller/initiator | 19 | Hong_Kong | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Muzz | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | songry | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | philly | flex/sentinel/duelist/controller/initiator | 20 | Cambodia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Calamareee | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ecco | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Melo | flex/sentinel/duelist/controller/initiator | 23 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | zenox | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | proxy | flex/sentinel/duelist/controller/initiator | 22 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Swifty | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | vizsla | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://owcdn.net/img/656424d0da151.png | false | true
+Free Agents | Incred1bl4 | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | kaza | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | niekk | flex/sentinel/duelist/controller/initiator | 23 | Greece | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | DARK | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | JayV | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | reaps | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Maple | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | XIAOXIN | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | RESLYDE | flex/sentinel/duelist/controller/initiator | 19 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | LAM | flex/sentinel/duelist/controller/initiator | 23 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | KhenZy | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Capy | flex/sentinel/duelist/controller/initiator | 21 | Taiwan | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Hainzu | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Cyro | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Bilibili Gaming | bud | flex/controller/initiator/sentinel/duelist | 21 | China | https://www.vlr.gg/img/base/ph/sil.png | true | false
+Free Agents | brock | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | JordoGiraffe | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Vent | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Elders | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Thorium | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | wisp | flex/sentinel/duelist/controller/initiator | 20 | Scotland | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | MAMMAL | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | martin | flex/sentinel/duelist/controller/initiator | 19 | Thailand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | vina | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Bored | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | oj | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | RAMEN | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Strame | flex/sentinel/duelist/controller/initiator | 19 | Pakistan | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | vex | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | phi | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Exirst | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Zeo | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | punda | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://owcdn.net/img/64071dbb2b7ea.png | false | true
+Free Agents | KR1S | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | gek | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Tony | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | onob | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | tax | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | nian | flex/sentinel/duelist/controller/initiator | 20 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | insanii | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | cybxr | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Xuan | flex/sentinel/duelist/controller/initiator | 22 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Đẹpth Try | flex/sentinel/duelist/controller/initiator | 23 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SUAVE | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | w4ter | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Apreggi | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | AnF | flex/sentinel/duelist/controller/initiator | 20 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | arct0 | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Errrnest | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | exempt | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ender | flex/sentinel/duelist/controller/initiator | 19 | Malaysia | https://owcdn.net/img/66178107d8c09.png | false | true
+Free Agents | Shinobu | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Zauqk | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | indraa | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | rDeeW | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://owcdn.net/img/6268d0890ec78.png | false | true
+Free Agents | Exi | flex/sentinel/duelist/controller/initiator | 22 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | xtoroki | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Maxyy | flex/sentinel/duelist/controller/initiator | 23 | Russia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Nation | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | loubert | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Sorrow | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | DeathBlade | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | nayv | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Remy | flex/sentinel/duelist/controller/initiator | 19 | United_States | https://owcdn.net/img/68582491ee2dd.png | false | true
+Free Agents | Wojtek | flex/sentinel/duelist/controller/initiator | 20 | Samoa | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Stride | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mirror | flex/sentinel/duelist/controller/initiator | 20 | China | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mundy | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | dcey | flex/sentinel/duelist/controller/initiator | 23 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | fireworks | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | qazwsxdc | flex/sentinel/duelist/controller/initiator | 23 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Whats Wong | flex/sentinel/duelist/controller/initiator | 22 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Dazeryuf | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SplatGun | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Gluttony | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | wodz | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | B1n | flex/sentinel/duelist/controller/initiator | 22 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | wilted | flex/sentinel/duelist/controller/initiator | 23 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | jippo | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SAINT | flex/sentinel/duelist/controller/initiator | 22 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | DistZulu | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Nezaq | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Lychii | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mini | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | FakeTile | flex/sentinel/duelist/controller/initiator | 20 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | gloom | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Shaggy | flex/sentinel/duelist/controller/initiator | 23 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Walli | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Hina | flex/sentinel/duelist/controller/initiator | 19 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | alex | flex/sentinel/duelist/controller/initiator | 20 | New_Zealand | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Stash | flex/sentinel/duelist/controller/initiator | 19 | Philippines | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | indie | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | dazy | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | larry | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | aplo | flex/sentinel/duelist/controller/initiator | 19 | South_Korea | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | CENTCH | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | TFUC | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jacyn | flex/sentinel/duelist/controller/initiator | 23 | Vietnam | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SHNIKKOV | flex/sentinel/duelist/controller/initiator | 21 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Chip | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | RAJIN | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | juterr | flex/sentinel/duelist/controller/initiator | 19 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Hoodlum | flex/sentinel/duelist/controller/initiator | 22 | Australia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Pa1ze | flex/sentinel/duelist/controller/initiator | 20 | Denmark | https://owcdn.net/img/682f255bccc21.png | false | true
+Free Agents | haint | flex/sentinel/duelist/controller/initiator | 21 | Russia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | VASQUEZ | flex/sentinel/duelist/controller/initiator | 19 | Turkey | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Shalaby | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://owcdn.net/img/66772f7a51cfa.png | false | true
+Free Agents | Yassien | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://owcdn.net/img/65e3d8e773b4e.png | false | true
+Free Agents | Shniider | flex/sentinel/duelist/controller/initiator | 22 | Egypt | https://owcdn.net/img/65e3ec5ded0c4.png | false | true
+Free Agents | Snop | flex/sentinel/duelist/controller/initiator | 23 | Morocco | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Depyro | flex/sentinel/duelist/controller/initiator | 22 | Egypt | https://owcdn.net/img/66772eb60827c.png | false | true
+Free Agents | Uzi | flex/sentinel/duelist/controller/initiator | 22 | Morocco | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | TheNightChe | flex/sentinel/duelist/controller/initiator | 19 | Turkey | https://owcdn.net/img/681fa80ad5262.png | false | true
+Free Agents | zMART | flex/sentinel/duelist/controller/initiator | 22 | Algeria | https://owcdn.net/img/65d747f34108e.png | false | true
+Free Agents | B3ASTM0D3 | flex/sentinel/duelist/controller/initiator | 21 | Croatia | https://owcdn.net/img/654b615feeee7.png | false | true
+Free Agents | chrollo | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://owcdn.net/img/66772f0457938.png | false | true
+Free Agents | darkw0w | flex/sentinel/duelist/controller/initiator | 19 | Egypt | https://owcdn.net/img/680345ec601e6.png | false | true
+Free Agents | Tian | flex/sentinel/duelist/controller/initiator | 22 | Russia | https://owcdn.net/img/61d89bd0527b4.png | false | true
+Free Agents | SkaNoodles | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://owcdn.net/img/66772fc70e7a9.png | false | true
+Free Agents | Loco | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | summoNN | flex/sentinel/duelist/controller/initiator | 22 | Morocco | https://owcdn.net/img/678c263c5f49f.png | false | true
+Free Agents | Magneto | flex/sentinel/duelist/controller/initiator | 22 | Egypt | https://owcdn.net/img/67d06c835cee2.png | false | true
+Free Agents | Terra | flex/sentinel/duelist/controller/initiator | 23 | Tunisia | https://owcdn.net/img/675ca545f1207.png | false | true
+Free Agents | Wezy | flex/sentinel/duelist/controller/initiator | 19 | Netherlands | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | m4xikk | flex/sentinel/duelist/controller/initiator | 23 | Russia | https://owcdn.net/img/664b77a261358.png | false | true
+Free Agents | Edelweiss | flex/sentinel/duelist/controller/initiator | 21 | Russia | https://owcdn.net/img/61d89bf83587e.png | false | true
+Free Agents | Gunner | flex/sentinel/duelist/controller/initiator | 23 | Egypt | https://owcdn.net/img/6836f65992127.png | false | true
+Free Agents | jeyj7y | flex/sentinel/duelist/controller/initiator | 21 | Turkey | https://owcdn.net/img/66554d9789d8c.png | false | true
+Free Agents | Block | flex/sentinel/duelist/controller/initiator | 20 | Egypt | https://owcdn.net/img/686b488333247.png | false | true
+Free Agents | A1mly | flex/sentinel/duelist/controller/initiator | 20 | Palestine | https://owcdn.net/img/686c4ff889697.png | false | true
+Free Agents | Helas | flex/sentinel/duelist/controller/initiator | 22 | France | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | suNtouch | flex/sentinel/duelist/controller/initiator | 22 | Morocco | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Kheops | flex/sentinel/duelist/controller/initiator | 22 | Algeria | https://owcdn.net/img/61dc1be63f624.png | false | true
+Free Agents | Nartzie | flex/sentinel/duelist/controller/initiator | 19 | Tunisia | https://owcdn.net/img/6433ae0452514.png | false | true
+Free Agents | Getoxic | flex/sentinel/duelist/controller/initiator | 21 | Egypt | https://owcdn.net/img/684d01ce3ce0d.png | false | true
+Free Agents | 9ondoss | flex/sentinel/duelist/controller/initiator | 19 | Morocco | https://owcdn.net/img/61b4ded402d06.png | false | true
+Free Agents | RockeT | flex/sentinel/duelist/controller/initiator | 19 | Egypt | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | N1NJA | flex/sentinel/duelist/controller/initiator | 22 | Egypt | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Collapsed | flex/sentinel/duelist/controller/initiator | 19 | Egypt | https://owcdn.net/img/68156d3e68bf7.png | false | true
+Free Agents | Shehab | flex/sentinel/duelist/controller/initiator | 19 | Egypt | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Electus | flex/sentinel/duelist/controller/initiator | 21 | Egypt | https://owcdn.net/img/650bfd0ccf341.png | false | true
+Free Agents | Tarbosh | flex/sentinel/duelist/controller/initiator | 21 | Egypt | https://owcdn.net/img/68034616a1b01.png | false | true
+Free Agents | SaQR | flex/sentinel/duelist/controller/initiator | 23 | Jordan | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Darwin | flex/sentinel/duelist/controller/initiator | 23 | Egypt | https://owcdn.net/img/656d40d53bb19.png | false | true
+Free Agents | sickrey | flex/sentinel/duelist/controller/initiator | 19 | Russia | https://owcdn.net/img/6433aefbcc038.png | false | true
+Free Agents | AL7B | flex/sentinel/duelist/controller/initiator | 22 | Saudi_Arabia | https://owcdn.net/img/66f4bfb56fab8.png | false | true
+Free Agents | sibeastw0w | flex/sentinel/duelist/controller/initiator | 19 | Russia | https://owcdn.net/img/63e32ba283f04.png | false | true
+Free Agents | Recoil | flex/sentinel/duelist/controller/initiator | 23 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ExiT | flex/sentinel/duelist/controller/initiator | 19 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SpYzera | flex/sentinel/duelist/controller/initiator | 21 | Lebanon | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Zimo | flex/sentinel/duelist/controller/initiator | 19 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Winteryrook | flex/sentinel/duelist/controller/initiator | 20 | Belarus | https://owcdn.net/img/61a61b6133476.png | false | true
+Free Agents | TTyke | flex/sentinel/duelist/controller/initiator | 19 | United_Arab_Emirates | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Sand | flex/sentinel/duelist/controller/initiator | 23 | Egypt | https://owcdn.net/img/664b752976954.png | false | true
+Free Agents | xelouz | flex/sentinel/duelist/controller/initiator | 20 | Kuwait | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ebeeee | flex/sentinel/duelist/controller/initiator | 21 | United_Arab_Emirates | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | str1keR | flex/sentinel/duelist/controller/initiator | 19 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Near | flex/sentinel/duelist/controller/initiator | 19 | Kuwait | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | BNR | flex/sentinel/duelist/controller/initiator | 22 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | KHaaLiD | flex/sentinel/duelist/controller/initiator | 23 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SolesiTo | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Kuro | flex/sentinel/duelist/controller/initiator | 23 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | ACHRF | flex/sentinel/duelist/controller/initiator | 23 | Algeria | https://owcdn.net/img/62533ac92c348.png | false | true
+Free Agents | Psilence | flex/sentinel/duelist/controller/initiator | 19 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | aimhunterr | flex/sentinel/duelist/controller/initiator | 23 | United_Arab_Emirates | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Fighter | flex/sentinel/duelist/controller/initiator | 22 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Naifma7 | flex/sentinel/duelist/controller/initiator | 19 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Erick | flex/sentinel/duelist/controller/initiator | 21 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | fr1 | flex/sentinel/duelist/controller/initiator | 22 | United_Arab_Emirates | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Izuki | flex/sentinel/duelist/controller/initiator | 22 | Saudi_Arabia | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | s0gs | flex/sentinel/duelist/controller/initiator | 21 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Opex | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Sweet | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Braso | flex/sentinel/duelist/controller/initiator | 21 | Italy | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | Sabajo | flex/sentinel/duelist/controller/initiator | 23 | Netherlands | https://www.vlr.gg/img/base/ph/sil.png | false | true
+Free Agents | xazyy | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://owcdn.net/img/6450a444466c6.png | false | true
+Free Agents | snowe | flex/sentinel/duelist/controller/initiator | 22 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Drog | flex/sentinel/duelist/controller/initiator | 19 | Ireland | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | NoHax | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | redwesty | flex/sentinel/duelist/controller/initiator | 19 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | iRushify | flex/sentinel/duelist/controller/initiator | 20 | Belgium | https://owcdn.net/img/68594bad33a2f.png | false | true
+Free Agents | Katrol | flex/sentinel/duelist/controller/initiator | 19 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | SnapS | flex/sentinel/duelist/controller/initiator | 21 | Turkey | https://owcdn.net/img/632bbc6e2da5f.png | false | true
+Free Agents | zAnd3x | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Fanca | flex/sentinel/duelist/controller/initiator | 19 | Italy | https://owcdn.net/img/6462606cd888c.png | false | true
+Free Agents | Limp | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://owcdn.net/img/6653b01dc604b.png | false | true
+Free Agents | sonna | flex/sentinel/duelist/controller/initiator | 19 | Germany | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Bara | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Jixey | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Lawliet | flex/sentinel/duelist/controller/initiator | 20 | International | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | yelloww | flex/sentinel/duelist/controller/initiator | 21 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | nao | flex/sentinel/duelist/controller/initiator | 21 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | UOMO | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Ghostz | flex/sentinel/duelist/controller/initiator | 22 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Bluee | flex/sentinel/duelist/controller/initiator | 22 | Belgium | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Zentox | flex/sentinel/duelist/controller/initiator | 21 | Bulgaria | https://owcdn.net/img/6726de5524e74.png | false | true
+Free Agents | FrancyBald | flex/sentinel/duelist/controller/initiator | 21 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | DrastZ | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://owcdn.net/img/63c15cb63705d.png | false | true
+Free Agents | umut coban | flex/sentinel/duelist/controller/initiator | 22 | Turkey | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | kyzzu | flex/sentinel/duelist/controller/initiator | 19 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Musyka | flex/sentinel/duelist/controller/initiator | 22 | Italy | https://owcdn.net/img/64120a46ccb55.png | false | true
+Free Agents | VirtualDLL | flex/sentinel/duelist/controller/initiator | 20 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | Mic | flex/sentinel/duelist/controller/initiator | 19 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | NVKIR | flex/sentinel/duelist/controller/initiator | 23 | Italy | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true
+Free Agents | FinganJode | flex/sentinel/duelist/controller/initiator | 20 | Vatican_City_State | https://images.vexels.com/media/users/3/258727/isolated/preview/52384117691bc668437dd96d33da85bf-hard-boiled-egg-food.png | false | true`;
 
-function applyPlayerRatingOverrides(players, ratingsConfig = {}) {
-  const byName = new Map(Object.entries(ratingsConfig || {}).map(([k, v]) => [normalizeNameKey(k), v]));
-  return players.map((p) => {
-    const override = byName.get(normalizeNameKey(p.name));
-    if (!override) return p;
-    return {
-      ...p,
-      ratingOverride: {
-        attrs: override.attrs || null,
-        attributes: override.attributes || null,
-        operatorAim: override.operatorAim,
-        traitHints: Array.isArray(override.traitHints) ? override.traitHints : undefined
-      }
-    };
-  });
-}
+
 export const IMPORTED_SEED_DB = buildSeedDatabaseFromText(`${MASTER_PLAYERS_TEXT}
 ${MASTER_PLAYERS_TEXT_EXTRA}
 ${MASTER_PLAYERS_TEXT_EXTRA_2}
 ${MASTER_PLAYERS_TEXT_EXTRA_3}
-${MASTER_PLAYERS_TEXT_EXTRA_4}`);
+${MASTER_PLAYERS_TEXT_EXTRA_4}
+${MASTER_PLAYERS_TEXT_EXTRA_5}`);
 
 export const REAL_TEAM_DATABASE = IMPORTED_SEED_DB.teams;
-export const REAL_IMPORTED_PLAYERS = applyPlayerRatingOverrides(IMPORTED_SEED_DB.players, PLAYER_RATINGS_OVERRIDES);
+export const REAL_IMPORTED_PLAYERS = IMPORTED_SEED_DB.players;
