@@ -239,11 +239,11 @@ function generateYearCalendar(state, year) {
         prizePool: rand(120000, 550000),
         pointsMultiplier: 0.9 + Math.random() * 0.6,
         travelCostFactor: 0.85 + Math.random() * 0.35,
-        inviteSlots: 4,
-        qualSlots: 12,
+        inviteSlots: 2,
+        qualSlots: 14,
         mainSlots: 16,
         prestige: rand(48, 76),
-        invitesCount: 4
+        invitesCount: 2
       });
       rd += rand(38, 62);
     }
@@ -279,15 +279,16 @@ function buildVeto(homeTeam, awayTeam) {
 function pickQualifierPool(state, event, ranked, invitedTids) {
   const inRegion = (t) => event.regionScope === 'INTERNATIONAL' || t.region === event.region;
   const nonInvited = ranked.filter((t) => !invitedTids.includes(t.tid) && inRegion(t));
-  const lowerT1 = nonInvited.filter((t) => t.tier === 'Tier 1').slice(0, 12).map((t) => t.tid);
+  const targetPoolSize = Math.min(nonInvited.length, Math.max(event.qualSlots * 2, 12));
+  const lowerT1 = nonInvited.filter((t) => t.tier === 'Tier 1').slice(0, Math.max(6, event.qualSlots)).map((t) => t.tid);
   const t2 = nonInvited.filter((t) => t.tier === 'Tier 2').map((t) => t.tid);
-  const pool = [...new Set([...lowerT1, ...t2])];
-  while (pool.length < 24) {
+  const pool = [...new Set([...lowerT1, ...t2])].slice(0, targetPoolSize);
+  while (pool.length < targetPoolSize) {
     const fb = ranked.find((t) => !invitedTids.includes(t.tid) && !pool.includes(t.tid));
     if (!fb) break;
     pool.push(fb.tid);
   }
-  while (pool.length < 24) {
+  while (pool.length < targetPoolSize) {
     const fbGlobal = state.teams.find((t) => !invitedTids.includes(t.tid) && !pool.includes(t.tid));
     if (!fbGlobal) break;
     pool.push(fbGlobal.tid);
@@ -377,7 +378,8 @@ function setupEventParticipation(state, event) {
   const eligible = state.teams.filter((t) => (event.regionScope === 'INTERNATIONAL' || t.region === event.region) && teamEligibleForEvent(t, event));
   const ranked = [...eligible].sort((a, b) => rankingScore(b) - rankingScore(a));
   event.mainSlots = 16;
-  event.inviteSlots = Math.min(8, Math.max(2, event.invitesCount || 4));
+  const desiredInvites = event.tier === 'S' ? 4 : 2;
+  event.inviteSlots = Math.min(6, Math.max(1, event.invitesCount || desiredInvites));
   event.qualSlots = Math.max(0, event.mainSlots - event.inviteSlots);
 
   const invited = ranked.slice(0, event.inviteSlots);

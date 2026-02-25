@@ -18,7 +18,9 @@ function bench(state, tid) { const sids = new Set((state.teams.find((x) => x.tid
 
 const TABLE_STATE = {
   players: createTableState({ defaultSortKey: 'ovr', defaultSortDir: 'desc', pageSize: 25 }),
-  freeAgents: createTableState({ defaultSortKey: 'ovr', defaultSortDir: 'desc', pageSize: 25 })
+  freeAgents: createTableState({ defaultSortKey: 'ovr', defaultSortDir: 'desc', pageSize: 25 }),
+  teams: createTableState({ defaultSortKey: 'elo', defaultSortDir: 'desc', pageSize: 25 }),
+  leaders: createTableState({ defaultSortKey: 'kills', defaultSortDir: 'desc', pageSize: 25 })
 };
 
 function toggleStarter(world, playerId, teamId, makeStarter) {
@@ -629,8 +631,24 @@ export function renderSponsors(main, state) {
 
 
 export function renderTeams(main, state) {
-  const rows = state.teams.map((team) => `<tr><td><a href="#/team?id=${team.tid}">${team.name}</a></td><td>${team.region}</td><td>${team.tier}</td><td>${Math.round(team.elo || 0)}</td><td>${team.circuitPoints || 0}</td><td>${formatMoney(team.cash || 0)}</td><td>${team.wins || 0}-${team.losses || 0}</td></tr>`).join('');
-  main.innerHTML = `<h1>Teams</h1><table><tr><th>Team</th><th>Region</th><th>Tier</th><th>ELO</th><th>Points</th><th>Cash</th><th>W-L</th></tr>${rows}</table>`;
+  main.innerHTML = `<h1>Teams</h1><table><thead data-teams-head><tr><th data-sort-key="name">Team</th><th data-sort-key="region">Region</th><th data-sort-key="tier">Tier</th><th data-sort-key="elo">ELO</th><th data-sort-key="points">Points</th><th data-sort-key="cash">Cash</th><th data-sort-key="record">W-L</th></tr></thead><tbody data-teams-body></tbody></table><div class="table-pager" data-teams-pager></div>`;
+  renderPagedTable(main, {
+    tableKey: 'teams',
+    rows: state.teams,
+    tbodySelector: '[data-teams-body]',
+    headerSelector: '[data-teams-head]',
+    pagerSelector: '[data-teams-pager]',
+    accessors: {
+      name: (t) => t.name,
+      region: (t) => t.region,
+      tier: (t) => t.tier,
+      elo: (t) => Number(t.elo || 0),
+      points: (t) => Number(t.circuitPoints || 0),
+      cash: (t) => Number(t.cash || 0),
+      record: (t) => Number((t.wins || 0) - (t.losses || 0))
+    },
+    renderRows: (rows) => rows.map((team) => `<tr><td><a href="#/team?id=${team.tid}">${team.name}</a></td><td>${team.region}</td><td>${team.tier}</td><td>${Math.round(team.elo || 0)}</td><td>${team.circuitPoints || 0}</td><td>${formatMoney(team.cash || 0)}</td><td>${team.wins || 0}-${team.losses || 0}</td></tr>`).join('')
+  });
 }
 
 export function renderTeamDetail(main, state, id) {
@@ -669,7 +687,25 @@ export function renderStats(main, state) {
     };
   }).sort((a, b) => (b.kills - a.kills) || (a.deaths - b.deaths));
 
-  main.innerHTML = `<h1>Stats</h1><h3>Rankings</h3><table><tr><th>#</th><th>Team</th><th>Region</th><th>ELO</th><th>Circuit Points</th><th>InviteScore</th><th>Last Event</th></tr>${teamRows.map((t, idx) => `<tr><td>${idx + 1}</td><td><a href="#/team?id=${t.tid}">${t.name}</a></td><td>${t.region}</td><td>${Math.round(t.elo || 0)}</td><td>${t.circuitPoints || 0}</td><td>${Math.round((t.elo || 0) * 0.6 + (t.circuitPoints || 0) * 0.4)}</td><td>${t.lastEventPlayed || '-'}</td></tr>`).join('')}</table><h3>Season ${season} - Kills Leaderboard</h3><table><tr><th>Rank</th><th>Player</th><th>Team</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Maps Played</th></tr>${rows.map((r, idx) => `<tr><td>${idx + 1}</td><td><a href="#/player?id=${r.pid}">${r.name}</a></td><td>${r.team}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${Number(r.kd).toFixed(2)}</td><td>${r.mapsPlayed}</td></tr>`).join('')}</table>`;
+  main.innerHTML = `<h1>Stats</h1><h3>Rankings</h3><table><tr><th>#</th><th>Team</th><th>Region</th><th>ELO</th><th>Circuit Points</th><th>InviteScore</th><th>Last Event</th></tr>${teamRows.map((t, idx) => `<tr><td>${idx + 1}</td><td><a href="#/team?id=${t.tid}">${t.name}</a></td><td>${t.region}</td><td>${Math.round(t.elo || 0)}</td><td>${t.circuitPoints || 0}</td><td>${Math.round((t.elo || 0) * 0.6 + (t.circuitPoints || 0) * 0.4)}</td><td>${t.lastEventPlayed || '-'}</td></tr>`).join('')}</table><h3>Season ${season} - Kills Leaderboard</h3><table><thead data-leaders-head><tr><th data-sort-key="name">Player</th><th data-sort-key="team">Team</th><th data-sort-key="kills">Kills</th><th data-sort-key="deaths">Deaths</th><th data-sort-key="assists">Assists</th><th data-sort-key="kd">K/D</th><th data-sort-key="mapsPlayed">Maps Played</th></tr></thead><tbody data-leaders-body></tbody></table><div class="table-pager" data-leaders-pager></div>`;
+
+  renderPagedTable(main, {
+    tableKey: 'leaders',
+    rows,
+    tbodySelector: '[data-leaders-body]',
+    headerSelector: '[data-leaders-head]',
+    pagerSelector: '[data-leaders-pager]',
+    accessors: {
+      name: (r) => r.name,
+      team: (r) => r.team,
+      kills: (r) => Number(r.kills || 0),
+      deaths: (r) => Number(r.deaths || 0),
+      assists: (r) => Number(r.assists || 0),
+      kd: (r) => Number(r.kd || 0),
+      mapsPlayed: (r) => Number(r.mapsPlayed || 0)
+    },
+    renderRows: (pageRows) => pageRows.map((r) => `<tr><td><a href="#/player?id=${r.pid}">${r.name}</a></td><td>${r.team}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.assists}</td><td>${Number(r.kd).toFixed(2)}</td><td>${r.mapsPlayed}</td></tr>`).join('')
+  });
 }
 
 export function renderPlayerDetail(main, state, id) {
@@ -687,7 +723,7 @@ export function renderPlayerDetail(main, state, id) {
   }).join('');
 
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const tab = params.get('tab') || 'history';
+  const tab = params.get('tab') || 'summary';
   const titleCase = (k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (m) => m.toUpperCase());
   const group = (title, obj) => `<h4>${title}</h4><ul>${Object.entries(obj || {}).map(([k, v]) => `<li>${titleCase(k)}: <strong>${Math.round(v || 0)}</strong></li>`).join('') || '<li>None</li>'}</ul>`;
 
@@ -696,9 +732,10 @@ export function renderPlayerDetail(main, state, id) {
     agentByRole[role] = agents.map((a) => [a, adv.utilitySkill?.agentMastery?.[a]]).filter(([, v]) => v != null);
   }
 
-  const tabs = `<div class="top-actions"><a href="#/player?id=${p.pid}&tab=history">History</a><a href="#/player?id=${p.pid}&tab=stats">Stats</a><a href="#/player?id=${p.pid}&tab=games">Games</a><a href="#/player?id=${p.pid}&tab=mastery">Agent Mastery</a></div>`;
+  const tabs = `<div class="top-actions"><a href="#/player?id=${p.pid}&tab=summary">Summary</a><a href="#/player?id=${p.pid}&tab=stats">Stats</a><a href="#/player?id=${p.pid}&tab=history">History</a><a href="#/player?id=${p.pid}&tab=games">Games</a><a href="#/player?id=${p.pid}&tab=mastery">Agent Mastery</a></div>`;
   const mechanicsQuick = adv.mechanics ? `<h4>Mechanics</h4><p>Raw Aim: ${Math.round(adv.mechanics.rawAim || 0)} • Tracking: ${Math.round(adv.mechanics.tracking || 0)} • First Bullet Accuracy: ${Math.round(adv.mechanics.firstBulletAccuracy || 0)} • Recoil Control: ${Math.round(adv.mechanics.recoilControl || 0)} • Movement: ${Math.round(adv.mechanics.movement || 0)} • Crosshair Discipline: ${Math.round(adv.mechanics.crosshairDiscipline || 0)} • Operator Aim: ${Math.round(adv.mechanics.operatorAim || 0)}</p>` : ''; 
   let content = '';
+  if (tab === 'summary') content = `<h3>Summary Snapshot</h3><p>Recent form and role context for ${p.name}.</p>`;
   if (tab === 'history') content = `<h3>History</h3><ul>${(p.history || []).slice(-30).map((h) => `<li>${h}</li>`).join('') || '<li>No history yet.</li>'}</ul>`;
   if (tab === 'stats') content = `${group('Mechanics', adv.mechanics)}${group('Utility', { rawAim: adv.utilitySkill?.utilityTiming, tracking: adv.utilitySkill?.utilityPrecision, firstBulletAccuracy: adv.utilitySkill?.comboSync, recoilControl: adv.utilitySkill?.roleMastery, movement: adv.utilitySkill?.utilityTiming, crosshairDiscipline: adv.utilitySkill?.utilityPrecision })}${group('Decision Making', adv.decisionMaking)}${group('Mental', adv.mental)}${group('Teamplay', adv.teamplay)}${group('Physical', adv.physical)}`;
   if (tab === 'games') content = `<h3>Career Stats by Season</h3><table><tr><th>Season</th><th>Kills</th><th>Deaths</th><th>Assists</th><th>K/D</th><th>Kills/Map</th><th>Deaths/Map</th><th>Maps Played</th><th>Most Ks in a Map</th></tr>${seasonRows || '<tr><td colspan="9">No completed maps yet.</td></tr>'}</table>`;

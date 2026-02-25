@@ -144,7 +144,7 @@ export function computeDerivedRatings(player, context = {}) {
 
   const raw = {
     rifleImpact: mech * 0.58 + decision * 0.2 + at.mechanics.recoilControl * 0.22,
-    opImpact: at.mechanics.operatorAim * 0.42 + at.mechanics.firstBulletAccuracy * 0.24 + at.mechanics.crosshairDiscipline * 0.18 + at.mental.composure * 0.16,
+    opImpact: at.mechanics.operatorAim * 0.38 + at.mechanics.firstBulletAccuracy * 0.2 + at.mechanics.crosshairDiscipline * 0.16 + at.decisionMaking.positioning * 0.14 + at.mental.composure * 0.12,
     entryPower: at.mechanics.movement * 0.33 + at.mental.confidence * 0.22 + at.decisionMaking.positioning * 0.25 + at.teamplay.initiative * 0.2,
     tradeReliability: at.teamplay.communication * 0.35 + at.teamplay.trustFollow * 0.3 + at.decisionMaking.spacing * 0.35,
     clutchImpact: at.mental.clutch * 0.48 + at.mental.composure * 0.3 + at.decisionMaking.riskControl * 0.22,
