@@ -1,0 +1,33 @@
+{
+  "TenZ": {
+    "attrs": {
+      "aim": 92,
+      "utility": 78,
+      "clutch": 89,
+      "mental": 84,
+      "teamwork": 77,
+      "decisionMaking": 80
+    },
+    "operatorAim": 90,
+    "traitHints": ["Oper Specialist", "Ice Cold"]
+  },
+  "Cryo": {
+    "operatorAim": 94,
+    "attrs": {
+      "aim": 90,
+      "clutch": 86
+    },
+    "traitHints": ["Oper Specialist"]
+  },
+  "Boaster": {
+    "attributes": {
+      "decisionMaking": {
+        "macroUnderstanding": 92,
+        "midRoundAdaptation": 91
+      },
+      "teamplay": {
+        "communication": 93
+      }
+    }
+  }
+}

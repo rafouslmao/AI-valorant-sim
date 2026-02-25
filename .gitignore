@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Tool caches
+.vite/
+.cache/
+
+# Logs
+*.log
+
+# Common temp/system files
+.DS_Store
+Thumbs.db
